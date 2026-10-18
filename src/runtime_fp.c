@@ -49,9 +49,24 @@ int runtime_fp_deterministic(void) {
     return value;
 }
 
+/* ufc4: Orbis' floating-point environment on guest threads also offline (BB_GUEST_MXCSR, default
+ * on; 0 keeps the host's 0x1f80). The game was built for the PS4's flush-to-zero and
+ * denormals-are-zero: without them every operation that meets or makes a denormal (decaying
+ * values in animation blending, physics damping, audio envelopes) takes a microcode assist of
+ * ~100+ cycles on the PC, and its results differ from the console's. Online play
+ * (BB_DETERMINISTIC_FP) always sets it. */
+int runtime_fp_guest_mxcsr(void) {
+    static int value = -1;
+    if (value < 0) {
+        const char *e = getenv("BB_GUEST_MXCSR");
+        value = e && *e ? e[0] == '1' : 1;
+    }
+    return value;
+}
+
 /* Orbis' floating-point environment, set on every thread that runs guest code (attach). */
 void runtime_fp_thread_setup(void) {
-    if (!runtime_fp_deterministic()) return;
+    if (!runtime_fp_deterministic() && !runtime_fp_guest_mxcsr()) return;
     uint32_t mxcsr = 0x9fc0;
     uint16_t control = 0x037f;
     __asm__ volatile("ldmxcsr %0\n\tfldcw %1" : : "m"(mxcsr), "m"(control));

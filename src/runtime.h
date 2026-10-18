@@ -50,6 +50,7 @@ void runtime_thread_attach_main(void);
  * The guest's approximate reciprocals are patched to a rule that is the same on every CPU, and
  * guest threads get the PS4's MXCSR (0x9fc0) and x87 control word (0x037f). */
 int runtime_fp_deterministic(void);
+int runtime_fp_guest_mxcsr(void); /* ufc4: BB_GUEST_MXCSR (default 1): PS4 MXCSR/x87 on guest threads offline */
 void runtime_fp_thread_setup(void);
 uint32_t runtime_fp_rcp(uint32_t x);
 uint32_t runtime_fp_rsqrt(uint32_t x);

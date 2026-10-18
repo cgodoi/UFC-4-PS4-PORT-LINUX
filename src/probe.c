@@ -495,6 +495,9 @@ int main(int argc, char **argv) {
     entered_game=1;
     struct { uint64_t argc; const char *argv[2]; } params = {1, {"/app0/eboot.bin", NULL}};
     /* The guest main thread runs on a stack below 1 TiB like PS4 stacks (platform_enter_guest_main). */
+    if (runtime_fp_deterministic() || runtime_fp_guest_mxcsr())
+        printf("Guest FP: the PS4's MXCSR 0x9fc0 (flush-to-zero, denormals-are-zero) and x87 0x037f on guest threads%s\n",
+               runtime_fp_deterministic() ? "" : " (BB_GUEST_MXCSR=0 keeps the host's)");
     runtime_fp_thread_setup(); /* also when no linked module attached the main thread */
     platform_enter_guest_main(image+entry,&params,(void *)guest_exit);
     fail("entry unexpectedly returned");
