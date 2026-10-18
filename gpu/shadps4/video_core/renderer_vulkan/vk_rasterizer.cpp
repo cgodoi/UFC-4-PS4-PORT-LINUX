@@ -2971,6 +2971,11 @@ struct DepthAsColor {
         vk::ImageView src_view{};
         VkImage src_image = VK_NULL_HANDLE; // the backing can change under the same image
         VideoCore::ImageId src_id{};
+        // portheon: the depth image's write_version this copy was converted from (~0: never).
+        // The conversion used to run at every bind, ending the render pass each time: in UFC 3's
+        // career hub every fighter draw reads the spot-light shadow map, and the frame went from
+        // 200+ FPS to under 1 (each draw paid a render pass break and a 1024x1024 dispatch).
+        u64 converted_version = ~0ULL;
     };
     vk::UniqueDescriptorSetLayout set_layout;
     vk::UniquePipelineLayout layout;
@@ -3038,7 +3043,7 @@ void DestroyDepthAsColor(const Instance& instance, Scheduler& scheduler, VkImage
     });
 }
 
-const DepthAsColor::Copy* DepthAsColorCopy(const Instance& instance, Scheduler& scheduler,
+DepthAsColor::Copy* DepthAsColorCopy(const Instance& instance, Scheduler& scheduler,
                                            VideoCore::TextureCache& texture_cache,
                                            VideoCore::ImageId src_id, vk::Image src_image,
                                            vk::Format src_format, u64 src_uid, u32 layer,
@@ -3066,6 +3071,7 @@ const DepthAsColor::Copy* DepthAsColorCopy(const Instance& instance, Scheduler& 
         DestroyDepthAsColor(instance, scheduler, copy.image, copy.allocation, copy.view, {});
         copy.image = VK_NULL_HANDLE;
         copy.view = vk::ImageView{};
+        copy.converted_version = ~0ULL;
     }
     // A new backing behind this image: a new source view, the old one destroyed once the frames
     // in flight are done with it.
@@ -3073,6 +3079,7 @@ const DepthAsColor::Copy* DepthAsColorCopy(const Instance& instance, Scheduler& 
         DestroyDepthAsColor(instance, scheduler, VK_NULL_HANDLE, VK_NULL_HANDLE, {},
                             copy.src_view);
         copy.src_view = vk::ImageView{};
+        copy.converted_version = ~0ULL;
     }
     if (!copy.src_view) {
         copy.src_view = Check(instance.GetDevice().createImageView({
@@ -3113,6 +3120,7 @@ const DepthAsColor::Copy* DepthAsColorCopy(const Instance& instance, Scheduler& 
         }));
         copy.width = width;
         copy.height = height;
+        copy.converted_version = ~0ULL;
         std::printf("Depth as %s: %ux%u copy of layer %u for a depth image read as raw Z%u bits "
                     "(%zu copies)\n",
                     is32 ? "R32_UINT" : "R16_UINT", width, height, layer, is32 ? 32u : 16u,
@@ -3427,12 +3435,23 @@ void Rasterizer::BindTextures(const Shader::Info& stage, const PreparedStage* pr
                 (desc.view_info.format == vk::Format::eR16Uint || depth_as_r32) &&
                 desc.view_info.range.base.level == 0 && desc.view_info.range.extent.layers == 1) {
                 const u32 width = image.info.size.width, height = image.info.size.height;
-                const auto* copy = DepthAsColorCopy(
+                auto* copy = DepthAsColorCopy(
                     instance, scheduler, texture_cache, image_id, image.GetImage(),
                     instance.GetSupportedFormat(image.info.pixel_format, image.format_features),
                     image.image_uid, desc.view_info.range.base.layer, width, height,
                     depth_as_r32);
-                if (copy) {
+                // portheon: rebuilt only when the depth image moved since the last conversion
+                // (BB_DEPTH_COLOR_ALWAYS=1: at every bind, as before).
+                static const bool always = [] {
+                    const char* e = std::getenv("BB_DEPTH_COLOR_ALWAYS");
+                    return e && e[0] == '1';
+                }();
+                if (copy && !always && copy->converted_version == image.write_version) {
+                    view = copy->view;
+                    layout = vk::ImageLayout::eGeneral;
+                    set_ok = false;
+                } else if (copy) {
+                    copy->converted_version = image.write_version;
                     // The depth image was transited for reading above; the copy is rebuilt now.
                     scheduler.EndRendering();
                     runtime.FlushBarriers();

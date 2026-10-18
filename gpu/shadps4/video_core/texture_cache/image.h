@@ -166,6 +166,10 @@ public:
     /// bbport: scheduler tick of the last binding that lets the GPU write it (render or depth target,
     /// storage image); 0 never.
     u64 gpu_write_tick{};
+    /// portheon: bumped whenever the contents may change (a GPU target or storage binding, an
+    /// upload, a copy into it): copies derived from it (a depth image read as raw bits) are
+    /// rebuilt only when it moved.
+    u64 write_version{};
     ImageId depth_id{};
     u64 depth_uid{};
     u64 image_uid{};

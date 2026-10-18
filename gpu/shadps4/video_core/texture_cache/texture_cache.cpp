@@ -642,6 +642,7 @@ ImageId TextureCache::ResolveDepthOverlap(const ImageInfo& requested_info, Bindi
         auto& new_image = slot_images[new_image_id];
         new_image.usage = cache_image.usage;
         new_image.flags &= ~ImageFlagBits::Dirty;
+        ++new_image.write_version;
         // When creating a depth buffer through overlap resolution don't clear it on first use.
         new_image.info.meta_info.htile_clear_mask = 0;
         runtime.CopyColorAndDepth(&cache_image, &new_image);
@@ -1258,6 +1259,7 @@ ImageView& TextureCache::FindTexture(ImageId image_id, const ImageDesc& desc, Vi
         image.flags |= ImageFlagBits::GpuModified;
         image.flags &= ~ImageFlagBits::WrittenBack;
         image.gpu_write_tick = scheduler.CurrentTick();
+        ++image.write_version;
         if (readback_linear_images && (!image.info.props.is_tiled || image.info.size.width <= 8) &&
             image.info.guest_address != 0) {
             std::unique_lock lk{download_images_mutex};
@@ -1313,6 +1315,7 @@ ImageView& TextureCache::FindRenderTarget(ImageId image_id, const ImageDesc& des
     image.flags |= ImageFlagBits::GpuModified;
     image.flags &= ~ImageFlagBits::WrittenBack;
     image.gpu_write_tick = scheduler.CurrentTick();
+    ++image.write_version;
     if (readback_linear_images && (!image.info.props.is_tiled || image.info.size.width <= 8)) {
         std::unique_lock lk{download_images_mutex};
         download_images.emplace(image_id);
@@ -1343,6 +1346,7 @@ ImageView& TextureCache::FindDepthTarget(ImageId image_id, const ImageDesc& desc
     WatchImage(image, "depth target");
     image.flags |= ImageFlagBits::GpuModified;
     image.gpu_write_tick = scheduler.CurrentTick();
+    ++image.write_version;
     image.usage.depth_target = 1u;
     UpdateImage(image_id);
 
@@ -1385,6 +1389,7 @@ void TextureCache::RefreshImage(Image& image) {
         return;
     }
     BbStats::Timer timer{BbStats::t_refresh};
+    ++image.write_version; // portheon: an upload (or a check for one) may change it
 
     RENDERER_TRACE;
     TRACE_HINT(fmt::format("{:x}:{:x}", image.info.guest_address, image.info.guest_size));
@@ -1496,6 +1501,7 @@ void TextureCache::RefreshImage(Image& image) {
     WatchImage(image, image_copies.empty() ? "refresh: nothing to copy" : "refresh: uploading");
     if (image_copies.empty()) {
         image.flags &= ~ImageFlagBits::Dirty;
+        ++image.write_version;
         return;
     }
 
