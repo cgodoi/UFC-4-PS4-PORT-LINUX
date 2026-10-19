@@ -5,7 +5,8 @@
 // in pieces, so the GPU is idle much of the time (utilisation 35-65 %) and stays at its lowest
 // clock, yet the frame misses its vblank because its GPU work starts late. This governor looks at
 // what matters: frames that missed their deadline. Every 500 ms it raises the GPU's minimum clock
-// when frames were late while the GPU was busy, and lowers it after a few seconds without late
+// when frames were late while the GPU was busy (>= 75 %), lowers it when they were late with GPU
+// headroom (< 60 %: the CPU is short of the shared power), and after a few seconds without late
 // frames, so the GPU runs as slow as the scene allows. It writes the amdgpu overdrive interface
 // (pp_od_clk_voltage, power_dpm_force_performance_level), which Bazzite/SteamOS leave writable
 // for the user; Steam may reset it, so it is re-applied every window. The launcher saves and
@@ -113,10 +114,16 @@ void Run() {
         const unsigned n = frames.exchange(0), late = late_frames.exchange(0);
         const int busy = std::atoi(ReadFile(device + "/gpu_busy_percent").c_str());
         int next = floor;
-        if (n >= 4 && late * 100 > n * 3 && busy >= 55) {
-            // Late frames while the GPU works: more clock. (Late frames with an idle GPU are the
-            // CPU's: a higher GPU clock would take power from it.)
+        const bool lateness = n >= 4 && late * 100 > n * 3;
+        if (lateness && busy >= 75) {
+            // Late frames while the GPU is the bottleneck: more clock.
             next = std::min(highest, floor + 200);
+            calm = 0;
+        } else if (lateness && busy < 60) {
+            // Late frames with GPU headroom: the CPU is short (APUs share one power budget). A
+            // higher GPU clock would take power from it: give some back. (Raising here was a trap:
+            // at 18 W the GPU went to 2000 MHz at 53 % busy while the CPU fell to 0.9 GHz.)
+            next = std::max(lowest, floor - 100);
             calm = 0;
         } else if (late == 0 && n > 0) {
             if (++calm >= 6 && busy < 80) { // 3 s on time with headroom: try less clock
