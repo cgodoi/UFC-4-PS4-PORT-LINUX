@@ -17,7 +17,8 @@ Check the download: `sha256sum -c UFC4Native-*.tar.gz.sha256`.
 
 ### Known issues
 - At 60 FPS the fight clock runs faster than real time; 30 FPS keeps the correct speed.
-- Career mode, online play, NVIDIA and Intel GPUs are not tested yet.
+- Online play, NVIDIA and Intel GPUs are not tested yet (Career mode works, also with a career
+  save imported from shadPS4).
 
 ### Reporting a problem
 Run `./ufc3.sh --doctor /path/CUSA14204-merged` with the game closed and attach the file it saves

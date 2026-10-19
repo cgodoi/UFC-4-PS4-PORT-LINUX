@@ -23,7 +23,8 @@ UFC 4 needs. All code is GPL-2.0-or-later.
 | 60 FPS, PC memory model, native resolution, GPU minimum 1600 MHz, 24 W TDP | 60 FPS, frame time p99 17.8 ms (measured), ~29-30 W, ~82 °C |
 | 60 FPS, PC memory model, 720p internal + FSR, GPU governor, 24 W TDP | smooth in play (frame log off), ~17-18 W, ~65 °C |
 
-Not tested yet: career mode, online, other GPUs (NVIDIA, Intel) and desktop PCs.
+Career mode also works, including a career save imported from shadPS4.
+Not tested yet: online, other GPUs (NVIDIA, Intel) and desktop PCs.
 Known limits: 60 FPS needs the PC memory model (AMD only) and enough GTT memory (see
 [Handhelds](docs/ufc4/README.md#handhelds-amd-apus)); the PC memory model is experimental.
 
