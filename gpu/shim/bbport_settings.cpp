@@ -206,6 +206,7 @@ void Load() {
     v.startup_output_res = v.output_res;
     v.startup_live_resolution = v.live_resolution;
     v.startup_game_res = v.game_res;
+    v.startup_frame_rate = v.frame_rate;
 }
 
 void ConfigureUpscalerSupport(bool fsr4, bool fsr411) {

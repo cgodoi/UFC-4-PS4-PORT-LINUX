@@ -947,9 +947,16 @@ void VideoOutDriver::PresentThread(std::stop_token token) {
             continue;
         }
 
-        // ufc4: the in-game menu's frame rate (60 or 30), live; else the game's / launcher's.
+        // ufc4: the in-game menu's frame rate (60 or 30), else the launcher's / game's. Live,
+        // except for UFC 4: its engine runs its frames at the rate it started with (60 FPS through
+        // patches/UFC4.xml), so there the menu's choice applies on restart (run.sh).
         {
-            const int fps = BbSettings::Get().frame_rate;
+            static const bool restart_only = [] {
+                const char* p = std::getenv("BB_GAME_PROFILE");
+                return p && std::strcmp(p, "ufc4") == 0;
+            }();
+            const auto& menu = BbSettings::Get();
+            const int fps = restart_only ? menu.startup_frame_rate : menu.frame_rate.load();
             const int hz = int(EmulatorSettings.GetVblankFrequency());
             main_port.flip_rate =
                 fps > 0 && hz >= fps ? hz / fps - 1 : main_port.launcher_flip_rate;

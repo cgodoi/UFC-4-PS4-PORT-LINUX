@@ -143,6 +143,7 @@ struct Values {
     int startup_output_res = OutputDefault;
     int startup_live_resolution = 0;
     int startup_game_res = 0;
+    int startup_frame_rate = -1;
 };
 
 Values& Get();

@@ -509,8 +509,9 @@ void Menu() {
             ImGui::EndCombo();
         }
         Hint(BbSettings::MenuText(
-            "Applies at once. 30 FPS (the console's) needs about half the power of 60: on a Legion Go "
-            "~15-18 W instead of ~22-28 W. UFC 4 keeps its speed at either.",
+            "30 FPS (the console's) needs about half the power of 60: on a Legion Go ~15-18 W instead "
+            "of ~22-28 W. UFC 4: applies after restarting (the game then runs its own 60 or 30 FPS "
+            "mode, so its clock keeps time); other games: at once.",
             "Сразу. 30 FPS требует примерно вдвое меньше мощности."));
 
         static const bool governor = [] {
@@ -628,6 +629,12 @@ void Menu() {
     }
     restart |= s.fps_unlocked != s.startup_fps_unlocked;
     restart |= s.game_res != s.startup_game_res;
+    // ufc4: the engine runs at the frame rate it started with (patches/UFC4.xml).
+    static const bool ufc4 = [] {
+        const char* p = std::getenv("BB_GAME_PROFILE");
+        return p && std::strcmp(p, "ufc4") == 0;
+    }();
+    restart |= ufc4 && s.frame_rate != s.startup_frame_rate;
     if (restart) {
         ImGui::TextColored(ImVec4(1.0f, 0.75f, 0.3f, 1.0f), "%s",
                            BbSettings::MenuText("Changes apply after restarting the game",

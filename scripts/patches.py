@@ -180,11 +180,15 @@ def main():
     p.add_argument('--out',type=Path,default=root/'out')
     p.add_argument('--settings',type=Path,default=root/'bbport.ini')
     p.add_argument('--external-only',action='store_true',help='accepted for older callers (the only mode)')
+    p.add_argument('--enable',action='append',default=[],help='also apply this patch ("<file>/<name>"; run.sh: UFC 4 at 60 FPS)')
     a=p.parse_args()
     elf=(a.out/'eboot.elf').read_bytes()
     segments=eboot_segments(elf)
     found=external_patches(a.patches_dir,a.app_version,a.title_id)
-    writes=compile_external(external_selection(found,a.patches_config,read_settings(a.settings)),segments,elf)
+    selected=external_selection(found,a.patches_config,read_settings(a.settings))
+    chosen={key for key,_,_ in selected}
+    selected+=[(key,path,meta) for key,path,meta in found if key in a.enable and key not in chosen]
+    writes=compile_external(selected,segments,elf)
     write_blob(a.out,writes)
     print(f'Patches: {len(writes)} writes from {len(found)} available patches')
 

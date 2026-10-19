@@ -74,8 +74,8 @@ scales it to the window; gamescope's FSR on top cost ~10 FPS here (a second upsc
 port's FSR 1 and RCAS sharpening and sets the sharpness, live (`bbport.ini` `fsr1`, `rcas`,
 `rcas_attenuation`; "launcher" keeps `BB_FSR1`, `BB_RCAS`, `BB_RCAS_ATTENUATION`).
 
-The menu's *Power* section, live: **Frame rate** (the launcher's, 60 or 30 FPS: the port's flip
-rate, so UFC 4 keeps its speed) and, with the GPU governor on, **GPU power**: *Performance* (the
+The menu's *Power* section: **Frame rate** (the launcher's, 60 or 30 FPS; for UFC 4 it applies on
+restart, see "60 FPS" below) and, with the GPU governor on, **GPU power**: *Performance* (the
 governor may raise the GPU's minimum to 2000 MHz, the driver may go to 2700), *Balanced* (capped at
 1600 MHz) or *Battery* (capped at 1200 MHz), which leave more of the shared power budget to the
 CPU (`bbport.ini` `frame_rate`, `gpu_profile`). The menu is in English unless `bbport.ini`
@@ -91,6 +91,20 @@ not help there; a lock check turns it off when the tick period drifts > 1 % from
 (NVIDIA's 580 driver divides by zero inside `vkWaitForPresentKHR`; `BB_VBLANK_SYNC=2` forces it).
 What looked like display judder was mostly a power shortage: with enough TDP the frame time is
 flat without it.
+
+### 60 FPS: the engine's own mode (`patches/UFC4.xml`)
+
+UFC 4 runs at 30 FPS: its renderer's init sets a present interval of 2 (`mov dword [rbx+0x8c], 2`
+at eboot vaddr 0x1274ee5), the main loop presents every frame with it (0x29b57) and the presenter
+turns it into `sceVideoOutSetFlipRate(1)`. Forcing the flip rate to 0 from outside (`BB_FLIP_RATE=0`)
+gave 60 FPS, but the game kept treating each frame as a 30 Hz one: the fight clock ran fast. The
+engine has a 60 FPS path for interval 1 (a render-parameter branch at 0x402aca), so the patch sets
+the interval to 1 at the init and at a second presenter with an immediate 2 (0x48715f, loading
+screens); the game then asks for flip rate 0 itself, from both. run.sh applies it when the game
+starts at 60 (the menu's `frame_rate=60`, or the launcher's `BB_FLIP_RATE=0` with the menu on
+"launcher"). The engine keeps the rate it started with, so changing the menu's frame rate asks for
+a restart. Found with gdb watchpoints on the interval field (its only readers are the main loop
+and that render branch).
 
 ## What changed, and why
 

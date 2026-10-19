@@ -126,8 +126,20 @@ aerolib_args=(); [[ -f share/aerolib.inl ]] && aerolib_args=(--aerolib share/aer
 # https://github.com/illusionyy/PS-Game-Patch), chosen in the in-game menu (bbport.ini patch_*
 # keys) or patches.json; BB_PATCHES_DIR adds a folder of further shadPS4-format XML files.
 fps=${BB_FPS:-30}
+patch_game=(--app-version 01.14 --title-id CUSA06534)
+if [[ $BB_GAME_PROFILE == ufc4 ]]; then
+    patch_game=(--app-version 28.00 --title-id CUSA14204)
+    # UFC 4 at 60 FPS: the engine's own 60 FPS mode (patches/UFC4.xml), so the game runs its frames
+    # (and the fight clock) at 60 Hz. At 60 when the in-game menu says so (bbport.ini
+    # frame_rate=60), or when it leaves it to the launcher and the launcher forces BB_FLIP_RATE=0.
+    menu_rate=$( { sed -n 's/^frame_rate=//p' "$BB_CONFIG" 2>/dev/null || true; } | tail -1)
+    if [[ $menu_rate == 60 || ( $menu_rate != 30 && ${BB_FLIP_RATE:-} == 0 ) ]]; then
+        patch_game+=(--enable "UFC4.xml/60 FPS (engine)")
+        echo "UFC 4: 60 FPS (the engine's own 60 FPS mode, patches/UFC4.xml)"
+    fi
+fi
 "$PYTHON" scripts/patches.py --patches-dir "${BB_PATCHES_DIR:-patches}" --patches-config "${BB_PATCHES_CONFIG:-$data/patches.json}" \
-    --app-version 01.14 --title-id CUSA06534 --out "$out" --settings "$BB_CONFIG"
+    "${patch_game[@]}" --out "$out" --settings "$BB_CONFIG"
 patch_args=(--patches "$out/patches.bin")
 # BB_NEO=1: PS4 Pro mode (sceKernelIsNeoMode, 7-CPU mode, 5568 MiB direct memory); the game then
 # picks its Pro rendering path. Off by default: the Steam Deck is closer to a base PS4.
