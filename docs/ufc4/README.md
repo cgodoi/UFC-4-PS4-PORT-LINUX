@@ -35,8 +35,11 @@ AMD's clock governor follows GPU utilisation. This port keeps the GPU idle much 
 GPU work starts late in the frame. A fixed minimum (1600 MHz) fixed the frame time but costs
 power in light scenes. `gpu/shim/bbport_gpu_governor.cpp` watches frame deadlines instead: every
 500 ms it raises the GPU's minimum clock by 200 MHz when more than 3 % of the frames were late
-while the GPU was ≥ 55 % busy (late frames with an idle GPU are the CPU's: more GPU clock would
-take power from it), and lowers it by 100 MHz after 3 s without late frames and below 80 % busy.
+while the GPU was ≥ 75 % busy, lowers it by 100 MHz when frames were late with the GPU below
+60 % busy (the CPU is short of the shared power: a higher GPU clock would take power from it),
+and lowers it by 100 MHz after 3 s without late frames and below 80 % busy. (A first version
+raised the clock from 55 % busy: at 18 W it drove the GPU to 2000 MHz at 53 % busy while the CPU
+fell to 0.9 GHz, and frames got later.)
 It writes `pp_od_clk_voltage` and `power_dpm_force_performance_level` (writable by the user on
 Bazzite/SteamOS), re-applies them when Steam resets the GPU to auto, and logs every change.
 
@@ -52,6 +55,34 @@ default 1600, 0 = do not touch the GPU), re-applied every 2 s.
 
 Measured in the same kind of fight: menus at 800 MHz / 14-15 W / 62 °C; the fight raised the
 minimum 1000 → 1400 MHz within 6 s, then it settled at 1200-1300 MHz, ~17-18 W, ~65 °C.
+
+### Resolution and power (Legion Go, the same heavy fight, 60 FPS, PC memory model, governor)
+
+| Game resolution | TDP | Result |
+|---|---|---|
+| 960x540 | 15 W | ~31 FPS, uneven (CPU at its 544 MHz minimum) |
+| 960x540 | 18-20 W | 60 FPS with occasional 33 ms frames, ~20-21 W, ~68 °C |
+| 960x540 | 25 W | 60 FPS flat, ~22-25 W, ~76 °C |
+| 1280x720 | 28 W | 60 FPS flat, ~27 W, ~76 °C |
+
+The game resolution is in the in-game menu (Insert or L3+R3 → *Game resolution*: the launcher's,
+960x540, 1280x720, 1600x900 or 1920x1080). The game sizes its render targets from its video output
+when it starts, so the choice is saved to `bbport.ini` (`game_resolution`) and applied by
+*Apply and restart game*; it wins over the launcher's `BB_INTERNAL_WIDTH/HEIGHT`. The port's FSR 1
+scales it to the window; gamescope's FSR on top cost ~10 FPS here (a second upscale to the panel's
+2560x1600) and is not needed once the TDP is enough. The menu is in English unless `bbport.ini`
+says `menu_language=ru`.
+
+### Display sync (experimental, off: `BB_VBLANK_SYNC=1`)
+
+The port's virtual vblank runs on its own clock. `bbport_vblank_sync.cpp` waits for each presented
+frame to reach the screen (`VK_KHR_present_wait`) and the present thread phase-locks its ticks to
+those times. Under gamescope the "on screen" time follows the port's own present (it locked at
+60 FPS with a +1.5 ms offset that did not converge, and drifted when frames ran late), so it does
+not help there; a lock check turns it off when the tick period drifts > 1 % from nominal. AMD only
+(NVIDIA's 580 driver divides by zero inside `vkWaitForPresentKHR`; `BB_VBLANK_SYNC=2` forces it).
+What looked like display judder was mostly a power shortage: with enough TDP the frame time is
+flat without it.
 
 ## What changed, and why
 
