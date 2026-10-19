@@ -88,6 +88,22 @@ non-Steam games. Read [docs/ufc4/README.md](docs/ufc4/README.md) for the setting
 - A GPU translator fix (an unused descriptor format stopped the game).
 - A reproducible Docker build and portable packaging.
 
+### Brought over from PORTHEON
+
+[PORTHEON](https://github.com/XAndromedaXR/UFC-4-PS4-PORT) (XAndromedaXR) is another UFC 4 port
+built on the same GNSB base. Two of its changes are included here, cherry-picked with their
+original commits (`git log --grep "cherry picked"`):
+
+- **The PS4's floating-point mode on the game's threads** (flush-to-zero, denormals-are-zero,
+  MXCSR `0x9fc0`): the game was built for it, and without it every very small number in
+  animation, physics or audio takes the CPU's slow path. `BB_GUEST_MXCSR=0` turns it off.
+- **Depth images read as raw bits are converted again only when they change**: a shadow map
+  was converted for every part of a fighter drawn, which made the frame rate collapse in Career.
+
+Their third fix of that series (game copies next to GPU-written memory no longer read pages
+back) was already in this repository's base (GNSB 0.1.6), done differently, so it is not
+duplicated.
+
 Details, measurements and settings: [docs/ufc4/README.md](docs/ufc4/README.md).
 The original UFC 3 port's README (UFC 3 instructions, launcher settings, credits):
 [README.UFC3.md](README.UFC3.md).
@@ -96,6 +112,8 @@ The original UFC 3 port's README (UFC 3 instructions, launcher settings, credits
 
 - **GNSB** — the [UFC 3 native port](https://github.com/GNSB/UFC-3-PS4-PORT-LINUX-WINDOWS) this
   repository is built on, and everyone credited in [README.UFC3.md](README.UFC3.md).
+- **XAndromedaXR** — [PORTHEON](https://github.com/XAndromedaXR/UFC-4-PS4-PORT): the
+  floating-point mode and the depth conversion fix above.
 - [SacredFire](https://github.com/T3CHNOLOG1C/SacredFire), [bbport](https://github.com/deadinside28/bloodborne_pc)
   and [shadPS4](https://github.com/shadps4-emu/shadPS4).
 
