@@ -22,6 +22,7 @@ extern "C" __declspec(dllimport) int __stdcall K32GetProcessMemoryInfo(void* pro
 #include "bbport_toggles.h"
 #include "bbport_heap_sites.h"
 #include "bbport_wait_trace.h"
+#include "bbport_gpu_governor.h"
 #include "video_core/renderer_vulkan/vk_frame_capture.h"
 #include "common/debug.h"
 #include "common/thread.h"
@@ -402,6 +403,16 @@ void VideoOutDriver::Flip(const Request& req) {
     Vulkan::FrameCapture::OnFlip(req.index >= 0 ? req.port->buffer_slots[req.index].address_left
                                                 : 0);
 
+    // ufc4: frame-deadline GPU clock governor (BB_GPU_GOVERNOR=1, bbport_gpu_governor.cpp).
+    {
+        using Clock = std::chrono::steady_clock;
+        static Clock::time_point previous = Clock::now();
+        const auto now = Clock::now();
+        const double interval = std::chrono::duration<double, std::milli>(now - previous).count();
+        previous = now;
+        const u32 hz = EmulatorSettings.GetVblankFrequency();
+        BbGpuGovernor::OnFlip(interval, hz ? 1000.0 / hz * (req.port->flip_rate + 1) : 0.0);
+    }
     // bbport: BB_FRAME_STATS=1 prints flip rate and frame time spread every 5 seconds.
     static const bool frame_stats = EmulatorSettingsImpl::Flag("BB_FRAME_STATS", false);
     if (frame_stats) {
