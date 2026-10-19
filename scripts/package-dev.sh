@@ -23,7 +23,8 @@ patchelf --set-rpath '$ORIGIN/../lib' "$stage/bin/gpu/libbbgpu.so"
 for f in "$stage"/bin/lib/*.so*; do patchelf --set-rpath '$ORIGIN' "$f"; done
 install -m755 run.sh packaging/linux/ufc3.sh packaging/linux/UFC3.sh "$stage/"
 cp launcher/*.py "$stage/launcher/"
-cp packaging/linux/ufc3.conf.example LICENSE "$stage/"
+cp packaging/linux/ufc3.conf.example LICENSE README.md "$stage/"
+mkdir -p "$stage/docs"; cp docs/ufc4/README.md "$stage/docs/UFC4.md"
 cp out/VERSION "$stage/VERSION"
 cp scripts/*.py "$stage/scripts/"; cp tools/*.py "$stage/tools/"
 find patches -maxdepth 1 -type f -name '*.xml' -exec cp {} "$stage/patches/" \;

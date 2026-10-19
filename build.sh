@@ -74,11 +74,12 @@ if [[ ! -f out/libatrac9.a || -n $(find third_party/LibAtrac9/C/src -newer out/l
 fi
 "$CC" -std=c11 -O2 -g -Wall -Wextra -Werror -pthread -no-pie "${includes[@]}" -I. -Isrc src/probe.c "${runtime[@]}" src/vulkan_smoke.c out/libatrac9.a -lm -lZydis "${gpu[@]}" "${libraries[@]}" -o out/sacredfire
 echo "Built $PWD/out/sacredfire"
-# out/VERSION: the source revision this build came from (the nearest v* tag, else the commit;
+# out/VERSION: the source revision this build came from (the nearest vX.Y.Z release tag or
+# ufc3-v* tag, else the commit;
 # "-dirty" when tracked files differ from it). run.sh prints it, the launcher shows it and the
 # package carries it, so a published binary can be matched to its source. The FSR-Vulkan patch
 # build.sh applies inside its submodule does not count as a change.
-version=$(git describe --tags --match 'ufc3-v*' --always 2>/dev/null || echo unknown)
+version=$(git describe --tags --match 'v[0-9]*' --match 'ufc3-v*' --always 2>/dev/null || echo unknown)
 git update-index -q --refresh 2>/dev/null || true
 if ! git diff-index --quiet --ignore-submodules=dirty HEAD -- 2>/dev/null; then version="$version-dirty"; fi
 printf '%s\n' "$version" > out/VERSION

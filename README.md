@@ -42,6 +42,14 @@ If you start from `.pkg` files, extract them with a tool that handles PS4 PFS co
 correctly. **LibOrbisPkg (`PkgTool.Core pkg_extract`) produced files with corrupted blocks** in
 our tests (no error reported; the game then hangs at a black screen).
 
+## Download
+
+Ready-to-run Linux builds are on the [Releases](https://github.com/cgodoi/UFC-4-PS4-PORT-LINUX/releases)
+page (`UFC4Native-vX.Y.Z-linux-x86_64.tar.gz`, with its SHA-256). They need glibc 2.43 or newer
+(Bazzite / Fedora 44, Arch, Ubuntu 26.04), Python 3 and a Vulkan 1.3 driver. Unpack the archive
+anywhere and go to [Playing](#playing). A release is built by
+[`.github/workflows/release.yml`](.github/workflows/release.yml) when a `vX.Y.Z` tag is pushed.
+
 ## Building
 
 Only Docker is needed on the host:
@@ -74,6 +82,20 @@ For handhelds there are ready-made launchers in [`launchers/legion-go/`](launche
 non-Steam games. Read [docs/ufc4/README.md](docs/ufc4/README.md) for the settings that matter
 (GTT size, TDP, Steam's per-game GPU clock).
 
+## Reporting problems
+
+Run the diagnostic with the game closed:
+
+```bash
+./ufc3.sh --doctor /path/CUSA14204-merged
+```
+
+It checks the system (glibc, Vulkan driver, AMD GTT size, Steam's manual GPU clock), the game
+files and the settings, warns about the known pitfalls, and saves a report in the data folder
+(home folder and user name hidden). Attach it to a
+[new issue](https://github.com/cgodoi/UFC-4-PS4-PORT-LINUX/issues/new/choose); the issue forms
+ask for it. Please never attach game files.
+
 ## What this port adds (UFC 4)
 
 - A `ufc4` game profile (the UFC 3 engine defaults, without UFC 3's address-keyed hooks).
@@ -86,7 +108,8 @@ non-Steam games. Read [docs/ufc4/README.md](docs/ufc4/README.md) for the setting
 - A frame-deadline **GPU clock governor** for AMD APUs (the driver's governor keeps the GPU at
   its lowest clock because this port leaves it idle much of the time).
 - A GPU translator fix (an unused descriptor format stopped the game).
-- A reproducible Docker build and portable packaging.
+- A reproducible Docker build, portable packaging and tagged Linux releases.
+- A diagnostic report for bug reports (`./ufc3.sh --doctor`) and issue forms.
 
 ### Brought over from PORTHEON
 

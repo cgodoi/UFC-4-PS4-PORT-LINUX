@@ -19,7 +19,7 @@ jobs:
       - name: Python tests
         run: python3 -m unittest discover -s tests -p 'test_*.py' -v
       - name: Shell syntax
-        run: bash -n run.sh build.sh launcher/bb-launcher.sh launcher/install-desktop.sh packaging/appimage.sh scripts/build-docker.sh scripts/package-dev.sh launchers/legion-go/*.sh
+        run: bash -n run.sh build.sh launcher/bb-launcher.sh launcher/install-desktop.sh packaging/appimage.sh scripts/build-docker.sh scripts/package-dev.sh launchers/legion-go/*.sh packaging/linux/ufc3.sh
       - name: Launcher compiles
         run: python3 -m py_compile launcher/sacredfire_launcher.py launcher/ufc3_launcher.py launcher/bbport_i18n.py launcher/bbport_vulkan.py tools/gen_import_names.py tools/import_shadps4_saves.py scripts/*.py
       - name: Patch files parse

@@ -1,0 +1,33 @@
+name: Performance or compatibility report
+description: How the port runs on your hardware (good results are welcome too).
+labels: [compatibility]
+body:
+  - type: input
+    id: hardware
+    attributes:
+      label: Device
+      placeholder: "Steam Deck OLED, SteamOS 3.8"
+    validations:
+      required: true
+  - type: dropdown
+    id: result
+    attributes:
+      label: Result
+      options: ["Plays well", "Playable with issues", "Boots but not playable", "Does not start"]
+    validations:
+      required: true
+  - type: textarea
+    id: settings
+    attributes:
+      label: Settings and numbers
+      description: Frame rate, resolution, memory model, TDP, measured FPS, power and temperature if you know them.
+    validations:
+      required: true
+  - type: textarea
+    id: doctor
+    attributes:
+      label: Diagnostic report
+      description: Output of `./ufc3.sh --doctor /path/to/CUSA14204` (attach the file or paste it).
+      render: text
+    validations:
+      required: true

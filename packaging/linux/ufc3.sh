@@ -4,12 +4,14 @@
 #   ./ufc3.sh --play                   plays with the saved launcher settings (no GTK)
 #   ./ufc3.sh [--play] /path/to/CUSA06534  legacy CLI; remembers the base game folder
 #                                       (the adjacent -patch folder is merged automatically)
+#   ./ufc3.sh --doctor [/path/to/game]  system report for bug reports (saved in the data folder)
 # Settings: ~/.local/share/UFC3Native/launcher.json (GUI / --play); ufc3.conf (legacy CLI).
 # Controls and overlay: bbport.ini in the same folder. Logs: logs/ there.
 set -euo pipefail
 here=$(cd -- "$(dirname -- "$0")" && pwd)
 # No arguments opens the GUI; --play and the existing positional folder keep CLI use.
 if [[ $# == 0 ]]; then exec python3 "$here/launcher/ufc3_launcher.py"; fi
+if [[ ${1:-} == --doctor ]]; then shift; exec python3 "$here/scripts/doctor.py" "$@"; fi
 if [[ ${1:-} == --play ]]; then
     shift
     if [[ $# == 0 ]]; then exec python3 "$here/launcher/ufc3_online.py" --play; fi

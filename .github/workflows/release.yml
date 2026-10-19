@@ -1,0 +1,58 @@
+# Linux release: pushing a tag vX.Y.Z builds the port in the docker/Dockerfile image (the same
+# build as scripts/build-docker.sh), checks the packaged binaries' libraries, and publishes
+# UFC4Native-vX.Y.Z-linux-x86_64.tar.gz with its SHA-256 as a GitHub pre-release. The notes are
+# packaging/linux/RELEASE-NOTES.md followed by the commits since the previous release.
+# Run it by hand (Actions -> release -> Run workflow) to get the archive as a workflow artifact
+# without publishing anything. No game files are involved.
+name: release
+
+on:
+  push:
+    tags: ['v[0-9]*']
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  linux:
+    name: Linux x86-64 package
+    runs-on: ubuntu-24.04
+    timeout-minutes: 120
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+          fetch-depth: 0        # git describe: the version stamped into the build
+      - name: Build (Docker)
+        run: bash scripts/build-docker.sh
+      - name: Packaged libraries resolve
+        # In the build image (glibc 2.43): every library is either packaged or a system one.
+        run: |
+          docker run --rm -v "$PWD/out/dev/UFC4Native":/pkg ufc4-port-build bash -c '
+            missing=$(ldd /pkg/bin/sacredfire /pkg/bin/gpu/libbbgpu.so /pkg/bin/bb-gpu-capabilities | grep "not found" || true)
+            [[ -z $missing ]] || { echo "$missing"; exit 1; }'
+          cat out/dev/UFC4Native/VERSION
+      - name: Archive
+        id: archive
+        run: |
+          version=$(cat out/dev/UFC4Native/VERSION)
+          name="UFC4Native-${GITHUB_REF_NAME#refs/tags/}-linux-x86_64"
+          [[ $GITHUB_REF_TYPE == tag ]] || name="UFC4Native-$version-linux-x86_64"
+          mkdir -p dist
+          tar -C out/dev -czf "dist/$name.tar.gz" UFC4Native
+          (cd dist && sha256sum "$name.tar.gz" > "$name.tar.gz.sha256")
+          echo "name=$name" >> "$GITHUB_OUTPUT"
+          ls -l dist
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ${{ steps.archive.outputs.name }}
+          path: dist/*
+      - name: Publish pre-release
+        if: github.ref_type == 'tag'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release create "$GITHUB_REF_NAME" dist/* --prerelease --verify-tag \
+            --title "UFC 4 native port $GITHUB_REF_NAME (Linux)" \
+            --notes-file packaging/linux/RELEASE-NOTES.md --generate-notes
