@@ -219,7 +219,10 @@ static void fault(int sig, siginfo_t *info, void *context) {
         pthread_sigmask(SIG_UNBLOCK, &unblock, NULL);
         siglongjmp(*recover, 1);
     }
-    /* The process is terminating: dladdr/snprintf are acceptable here. */
+    /* The process is terminating: dladdr/snprintf are acceptable here. One report at a time: a
+     * second thread faulting meanwhile waits, so the first report is not cut short by _exit. */
+    static volatile int reporting;
+    if (__atomic_exchange_n(&reporting, 1, __ATOMIC_ACQ_REL)) { for (;;) pause(); }
     ucontext_t *uc = context;
     uintptr_t rip = (uintptr_t)uc->uc_mcontext.gregs[REG_RIP];
     char line[512], where[256];
@@ -243,6 +246,19 @@ static void fault(int sig, siginfo_t *info, void *context) {
         }
         if (maps) fclose(maps);
         if (!found) write_all("none\n");
+        /* The guest return addresses on the stack (the call that jumped here comes first). */
+        uint64_t stack[512] = {0};
+        struct iovec local = {stack, sizeof(stack)}, remote = {(void *)uc->uc_mcontext.gregs[REG_RSP], sizeof(stack)};
+        const ssize_t got = process_vm_readv(getpid(), &local, 1, &remote, 1, 0);
+        write_all("  guest addresses on the stack:");
+        for (ssize_t i = 0, shown = 0; i < got / 8 && shown < 12; ++i) {
+            if (stack[i] - (uintptr_t)guest_image < guest_image_size) {
+                snprintf(line, sizeof(line), " +0x%lx", (unsigned long)(stack[i] - (uintptr_t)guest_image)); write_all(line); ++shown;
+            }
+        }
+        snprintf(line, sizeof(line), "\n  rdi=%#llx rsi=%#llx rax=%#llx\n", (unsigned long long)uc->uc_mcontext.gregs[REG_RDI],
+                 (unsigned long long)uc->uc_mcontext.gregs[REG_RSI], (unsigned long long)uc->uc_mcontext.gregs[REG_RAX]);
+        write_all(line);
     }
     /* Host call chain (frames with unwind info; guest frames end it). */
     void *frames[32];
