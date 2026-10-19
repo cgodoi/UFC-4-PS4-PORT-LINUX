@@ -115,26 +115,34 @@ class SignatureTests(unittest.TestCase):
 class GamePatchTests(unittest.TestCase):
     """The bundled CTR patches, chosen through bbport.ini patch_* keys (the in-game menu)."""
 
-    def test_bundled_file_lists_every_menu_patch(self):
-        found = external_patches(ROOT / 'patches')
+    def test_bundled_files_match_their_game(self):
+        # patches/UFC4.xml: UFC 4 update 28.00 only. Every menu key names a bundled patch.
+        found = external_patches(ROOT / 'patches', app_version='28.00', title_id='CUSA14204')
         keys = {key for key, _, _ in found}
+        self.assertIn('UFC4.xml/60 FPS (engine)', keys)
         for patch in GAME_PATCH_KEYS.values():
             self.assertIn(patch, keys)
-        self.assertEqual(external_patches(ROOT / 'patches', title_id='CUSA99999'), [])
-        self.assertEqual(external_patches(ROOT / 'patches', app_version='01.00'), [])
+        self.assertEqual(external_patches(ROOT / 'patches', app_version='28.00', title_id='CUSA99999'), [])
+        self.assertEqual(external_patches(ROOT / 'patches', app_version='01.00', title_id='CUSA14204'), [])
 
-    def test_ini_keys_select_patches(self):
-        found = external_patches(ROOT / 'patches')
+    def test_ufc4_60fps_patch_is_off_until_enabled_and_writes_the_interval(self):
+        # Off by default (isEnabled="false"); run.sh enables it when UFC 4 starts at 60 FPS. It sets
+        # the renderer's present interval (mov dword [rbx+0x8c], 2) and the loading screens' (mov
+        # esi, 2) to 1, at their 28.00 addresses or wherever the signatures are found.
+        found = external_patches(ROOT / 'patches', app_version='28.00', title_id='CUSA14204')
         self.assertEqual(external_selection(found, None, {}), [])
-        selected = external_selection(found, None, {'patch_60fps': '1', 'patch_no_motion_blur': '0'})
-        self.assertEqual([key for key, _, _ in selected], ['CrashTeamRacing.xml/60 FPS Unlock'])
-        signature = selected[0][2].find('.//Line').get('Signature')
-        code = bytes(0 if b == '??' else int(b, 16) for b in signature.split())
-        start = 0x017a9d8b - EBOOT_BASE  # the 5.05 build's address for the signature
-        for at in (start, start + 0x40):  # 5.05 build; code moved (6.72+ build)
-            elf = tiny_elf(b'\0' * (at - 0x13a9d00) + code + b'\0' * 32, vaddr=0x13a9d00)
+        selected = [entry for entry in found if entry[0] == 'UFC4.xml/60 FPS (engine)']
+        init = bytes.fromhex('c7838c00000002000000a812')
+        loading = bytes.fromhex('be02000000ba04000000488b7820488b07ff9068010000')
+        for shift in (0, 0x40):  # the published addresses; the code moved (another build)
+            base = 0x487100
+            code = bytearray(0x1275000 - base)
+            at_loading, at_init = 0x48715f + shift - base, 0x1274ee5 + shift - base
+            code[at_loading:at_loading + len(loading)] = loading
+            code[at_init:at_init + len(init)] = init
+            elf = tiny_elf(bytes(code), vaddr=base)
             writes = compile_external(selected, eboot_segments(elf), elf)
-            self.assertEqual(writes, [(at + 5, bytes.fromhex('41899688040000'))])
+            self.assertEqual(sorted(writes), [(0x487160 + shift, b'\x01'), (0x1274eeb + shift, b'\x01')])
 
     def test_every_bundled_patch_is_signed_and_found_at_its_address(self):
         # The signatures must match at their published addresses in the firmware 5.05 build

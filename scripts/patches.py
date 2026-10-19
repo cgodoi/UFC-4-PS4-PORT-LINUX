@@ -10,8 +10,7 @@ there (the 1.21 build for firmware 5.05); otherwise to the one place in the exec
 matches (the 6.72+ build, whose code sits at other addresses). No match, or more than one: the
 patch is skipped whole, with a log line.
 
-Patch files: patches/*.xml in the checkout (patches/CrashTeamRacing.xml, from
-illusionyy/PS-Game-Patch) and any folder named with --patches-dir. A patch is applied when the
+Patch files: patches/*.xml in the checkout (patches/UFC4.xml) and any folder named with --patches-dir. A patch is applied when the
 in-game menu or the launcher turned its bbport.ini key on (GAME_PATCH_KEYS), when patches.json
 lists it under "enabled", or when its file marks it isEnabled and patches.json does not disable it.
 """
@@ -29,9 +28,9 @@ APP_VERSION='01.21'
 # bbport.ini keys (the in-game menu, the launcher) -> "<file>/<patch name>". The patches are
 # community work from illusionyy/PS-Game-Patch (https://github.com/illusionyy/PS-Game-Patch):
 # 60 FPS Unlock and Disable Motion Blur by illusion, the 1080p Pro resolution patch by TroyWarez.
-GAME_PATCH_KEYS={'patch_60fps':'CrashTeamRacing.xml/60 FPS Unlock',
-                 'patch_no_motion_blur':'CrashTeamRacing.xml/Disable Motion Blur',
-                 'patch_pro_1080p':'CrashTeamRacing.xml/Resolution Patch (1080p for PS4 Pro)'}
+# ufc4: none. They were Crash Team Racing's (patches/CrashTeamRacing.xml), which this repository
+# does not ship; UFC 4's 60 FPS patch (patches/UFC4.xml) follows the menu's frame rate (run.sh).
+GAME_PATCH_KEYS={}
 
 
 def read_settings(path):

@@ -121,10 +121,9 @@ fi
 aerolib_args=(); [[ -f share/aerolib.inl ]] && aerolib_args=(--aerolib share/aerolib.inl)  # packaged copy
 "$PYTHON" tools/gen_import_names.py --out "$out" "${aerolib_args[@]}"
 "$PYTHON" scripts/content_profile.py "$game" --out "$out" --sku "${BB_CONTENT_SKU:-full}"
-# The game runs at its own 30 FPS against a 60 Hz vblank unless the 60 FPS patch is on. Patches
-# come from patches/CrashTeamRacing.xml (community patches by illusion and TroyWarez, from
-# https://github.com/illusionyy/PS-Game-Patch), chosen in the in-game menu (bbport.ini patch_*
-# keys) or patches.json; BB_PATCHES_DIR adds a folder of further shadPS4-format XML files.
+# Executable patches (shadPS4/GoldHEN XML, scripts/patches.py): patches/*.xml (UFC 4's 60 FPS
+# patch, see below), selected by patches.json or by run.sh; BB_PATCHES_DIR adds a folder of
+# further XML files.
 fps=${BB_FPS:-30}
 patch_game=(--app-version 01.14 --title-id CUSA06534)
 if [[ $BB_GAME_PROFILE == ufc4 ]]; then
@@ -153,17 +152,6 @@ echo "PS4 Pro mode: ${BB_NEO} (BB_NEO=1 turns it on)"
 if [[ ${BB_CLEAR_SHADER_CACHE:-0} == 1 ]]; then
     rm -rf "${BB_USER_DIR:-$data/user}/cache/CUSA06534"
     echo "Shader cache: cleared for this launch (BB_CLEAR_SHADER_CACHE=1)"
-fi
-# With the 60 FPS patch the game's own limiter paces frames; a 60 Hz virtual vblank would
-# quantize a slightly late frame to 30 FPS (measured: 40-44 FPS alternating 16.7/33 ms).
-# A 480 Hz vblank lets frames flip as they come (menus 60 FPS instead of 50).
-# The patch removes the game's 30 FPS cap altogether, and above 60 FPS its physics misbehave
-# (a report: slopes bleed speed, karts stick on ledges at 120+ FPS), so the present thread caps
-# at 60 (BB_FPS_LIMIT) unless BB_FPS=uncap or BB_FPS_LIMIT says otherwise (0: no limit).
-if [[ -f $BB_CONFIG ]] && grep -qx 'patch_60fps=1' "$BB_CONFIG"; then
-    export BB_VBLANK_HZ=${BB_VBLANK_HZ:-480}
-    if [[ $fps == uncap ]] || grep -qx 'fps_unlocked=1' "$BB_CONFIG"; then export BB_FPS_LIMIT=${BB_FPS_LIMIT:-0}; else export BB_FPS_LIMIT=${BB_FPS_LIMIT:-60}; fi
-    echo "60 FPS patch on: virtual vblank ${BB_VBLANK_HZ} Hz, frame limit ${BB_FPS_LIMIT} FPS (0: none; bbport.ini fps_unlocked=1 or BB_FPS=uncap)"
 fi
 # Background upload of the game's GPU memory into VRAM ahead of use (BufferCache::Preupload):
 # 1 = only memory already in VRAM that the game rewrote (no new VRAM), 2 = all of it (~3 GB more

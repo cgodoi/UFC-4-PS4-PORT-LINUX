@@ -602,21 +602,9 @@ void Menu() {
             "мощности. Применяется после перезапуска."));
     }
 
-    // Game patches (patches/CrashTeamRacing.xml): bbport's own game-effect patches went with its
-    // Bloodborne profile (removed 2026-10-09).
-    ImGui::SeparatorText(BbSettings::MenuText("Game patches (restart required)",
-                                              "Патчи игры (после перезапуска)"));
-    for (int g = 0; g < BbSettings::GamePatchCount; ++g) {
-        const auto& patch = BbSettings::GamePatches[g];
-        Checkbox(BbSettings::MenuText(patch.label, patch.label_ru), s.game_patches[g]);
-    }
-    Hint(BbSettings::MenuText("From patches/CrashTeamRacing.xml (illusionyy/PS-Game-Patch), applied to the executable at start.",
-                              "Из patches/CrashTeamRacing.xml (illusionyy/PS-Game-Patch), применяются к исполняемому файлу при запуске."));
-    // SacredFire: the 60 FPS patch removes the game's cap altogether; the port limits it to 60
-    // unless this is on.
-    Checkbox(BbSettings::MenuText("Unlocked frame rate (with 60 FPS unlock)", "Без ограничения кадров (с 60 FPS)"), s.fps_unlocked);
-    Hint(BbSettings::MenuText("Off: 60 FPS. On: as fast as it renders; above 60 FPS the game's physics misbehave (slopes, ledges).",
-                              "Выкл: 60 FPS. Вкл: без ограничения; выше 60 FPS физика игры ведёт себя неверно (склоны, уступы)."));
+    // The Crash Team Racing patch checkboxes (patches/CrashTeamRacing.xml, "Unlocked frame rate")
+    // went with that game: their file is not in this repository, and the CTR 60 FPS key changed
+    // the vblank under UFC. UFC 4's 60 FPS is the Power section's frame rate (patches/UFC4.xml).
 
     bool restart =
         s.object_motion != s.startup_object_motion || s.model_lod != s.startup_model_lod ||
