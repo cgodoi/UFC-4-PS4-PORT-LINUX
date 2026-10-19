@@ -59,7 +59,19 @@ export BB_GAME_PROFILE=${profile:-ufc3}
 echo "Game profile: $BB_GAME_PROFILE"
 # ufc3: the fight scene renders black without precise readbacks of linear images (the same as
 # shadPS4 issue #4375 for UFC 4, same engine); both are defaults for this game.
-if [[ $BB_GAME_PROFILE == ufc3 ]]; then
+# ufc4 (experimental): same EA engine, so the same defaults, plus thread creation waiting for the
+# new thread to start (EA's 32-slot pthread_create hand-over ring, src/runtime_thread.c).
+# Frame rate: unlike UFC 3, UFC 4's simulation advances per frame at the rate it asks for (flip
+# rate 1, 30 Hz): an unlocked rate runs the game fast. The game's own flip rate (-1) on a 60 Hz
+# vblank keeps its speed; BB_FLIP_RATE=0 asks for 60 Hz.
+if [[ $BB_GAME_PROFILE == ufc4 ]]; then
+    export BB_THREAD_START_WAIT=${BB_THREAD_START_WAIT:-1}
+    export BB_FLIP_RATE=${BB_FLIP_RATE:--1} BB_VBLANK_HZ=${BB_VBLANK_HZ:-60}
+    # Short game timers sleep until 0.2 ms before they expire instead of spinning the whole
+    # time (power and heat on handhelds; gpu/shadps4/core/libraries/kernel/equeue.cpp).
+    export BB_TIMER_SLEEP=${BB_TIMER_SLEEP:-1}
+fi
+if [[ $BB_GAME_PROFILE == ufc3 || $BB_GAME_PROFILE == ufc4 ]]; then
     export BB_READBACKS=${BB_READBACKS:-2} BB_READBACK_LINEAR=${BB_READBACK_LINEAR:-1}
     # Precise readbacks deadlock against the GPU write twins (twins_mutex held by the thread a
     # readback waits for); off for this game.
