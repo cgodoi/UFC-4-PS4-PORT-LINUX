@@ -356,7 +356,9 @@ constexpr NumberConversion MapNumberConversion(const NumberFormat num_fmt,
         case DataFormat::Format16_16_16_16:
             return NumberConversion::Sint16ToSnormNz;
         default:
-            UNREACHABLE_MSG("data_fmt = {}", u32(data_fmt));
+            // ufc4: SnormNz on an invalid/unused format (data_fmt 0, seen in fights): nothing to
+            // convert, as for the other formats above, instead of stopping the game.
+            return NumberConversion::None;
         }
     }
     default:
