@@ -65,6 +65,20 @@ inline constexpr int OutputDefault = 1; ///< 1920x1080, the game's own size
 inline constexpr int GameResCount = 7;
 inline constexpr int GameResWidths[GameResCount] = {0, 960, 1024, 1152, 1280, 1600, 1920};
 inline constexpr int GameResHeights[GameResCount] = {0, 540, 576, 648, 720, 900, 1080};
+/// ufc4: GPU power profiles for the frame-deadline governor (bbport_gpu_governor.cpp): the highest
+/// minimum clock it may set and the clock range's maximum (MHz).
+struct GpuProfile {
+    const char* key;
+    const char* label;
+    int floor_max, ceiling;
+};
+inline constexpr GpuProfile GpuProfiles[] = {
+    {"performance", "Performance (up to 2700 MHz)", 2000, 2700},
+    {"balanced", "Balanced (up to 1600 MHz)", 1600, 1600},
+    {"battery", "Battery (up to 1200 MHz)", 1200, 1200},
+};
+inline constexpr int GpuProfileCount = 3;
+
 /// The menu's game resolution, read once at start: {0, 0} when the launcher decides.
 int GameResolutionWidth();
 int GameResolutionHeight();
@@ -110,6 +124,10 @@ struct Values {
     /// BB_RCAS_ATTENUATION).
     std::atomic<int> fsr1{-1}, rcas{-1};
     std::atomic<float> rcas_attenuation{-1.0f}; ///< 0 sharpest .. 2
+    /// ufc4, live: the frame rate (-1 the launcher's, else 60 or 30) and the GPU power profile
+    /// for the governor (-1 the launcher's, else an index into GpuProfiles).
+    std::atomic<int> frame_rate{-1};
+    std::atomic<int> gpu_profile{-1};
     /// Why FSR 4 cannot run (assets, device features), or null. Set by the renderer.
     std::atomic<const char*> fsr4_problem{nullptr};
     std::atomic<bool> fsr4_supported{false}, fsr411_supported{false};

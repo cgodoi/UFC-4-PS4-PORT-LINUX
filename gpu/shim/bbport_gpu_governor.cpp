@@ -12,6 +12,7 @@
 // for the user; Steam may reset it, so it is re-applied every window. The launcher saves and
 // restores the previous setting. Settings: BB_GPU_GOV_MIN/MAX/START (MHz, default 800/2000/1300).
 #include "bbport_gpu_governor.h"
+#include "bbport_settings.h"
 #ifdef __linux__
 
 #include <algorithm>
@@ -75,29 +76,33 @@ std::string FindDevice() {
     return found;
 }
 
-/// The current overdrive minimum ("0: 1600Mhz" under OD_SCLK), or -1.
-int CurrentMinimum() {
+/// The current overdrive minimum (`level` 0, "0: 1600Mhz" under OD_SCLK) or maximum (1), or -1.
+int CurrentClock(int level) {
     const std::string od = ReadFile(device + "/pp_od_clk_voltage");
     const auto at = od.find("OD_SCLK:");
     if (at == std::string::npos) {
         return -1;
     }
-    const auto zero = od.find("0:", at);
-    return zero == std::string::npos ? -1 : std::atoi(od.c_str() + zero + 2);
+    const std::string tag = "\n" + std::to_string(level) + ":";
+    const auto line = od.find(tag, at);
+    return line == std::string::npos ? -1 : std::atoi(od.c_str() + line + tag.size());
 }
 
 bool Apply(int minimum, int maximum) {
     const bool manual = ReadFile(device + "/power_dpm_force_performance_level").rfind("manual", 0) == 0;
-    if (manual && CurrentMinimum() == minimum) {
+    if (manual && CurrentClock(0) == minimum && CurrentClock(1) == maximum) {
         return true; // nothing changed (Steam did not reset it either)
     }
     if (!manual && !WriteFile(device + "/power_dpm_force_performance_level", "manual")) {
         return false;
     }
-    // One command per write: the interface parses a single line at a time.
-    return WriteFile(device + "/pp_od_clk_voltage", "s 1 " + std::to_string(maximum)) &&
-           WriteFile(device + "/pp_od_clk_voltage", "s 0 " + std::to_string(minimum)) &&
-           WriteFile(device + "/pp_od_clk_voltage", "c");
+    // One command per write: the interface parses a single line at a time. The range must stay
+    // valid after each step: a maximum lowered below the current minimum goes in second.
+    const std::string od = device + "/pp_od_clk_voltage";
+    const std::string set_min = "s 0 " + std::to_string(minimum), set_max = "s 1 " + std::to_string(maximum);
+    const bool lowering = maximum < CurrentClock(0);
+    return WriteFile(od, lowering ? set_min : set_max) && WriteFile(od, lowering ? set_max : set_min) &&
+           WriteFile(od, "c");
 }
 
 void Run() {
@@ -111,13 +116,19 @@ void Run() {
     Apply(floor, ceiling);
     for (;;) {
         std::this_thread::sleep_for(std::chrono::milliseconds(500));
+        // The in-game menu's GPU power profile, live: the highest minimum and the range's maximum.
+        const int profile = BbSettings::Get().gpu_profile;
+        const bool profiled = profile >= 0 && profile < BbSettings::GpuProfileCount;
+        const int top = profiled ? BbSettings::GpuProfiles[profile].floor_max : highest;
+        const int max_clock = profiled ? BbSettings::GpuProfiles[profile].ceiling : ceiling;
+        floor = std::min(floor, top);
         const unsigned n = frames.exchange(0), late = late_frames.exchange(0);
         const int busy = std::atoi(ReadFile(device + "/gpu_busy_percent").c_str());
         int next = floor;
         const bool lateness = n >= 4 && late * 100 > n * 3;
         if (lateness && busy >= 75) {
             // Late frames while the GPU is the bottleneck: more clock.
-            next = std::min(highest, floor + 200);
+            next = std::min(top, floor + 200);
             calm = 0;
         } else if (lateness && busy < 60) {
             // Late frames with GPU headroom: the CPU is short (APUs share one power budget). A
@@ -139,7 +150,7 @@ void Run() {
             std::fflush(stdout);
             floor = next;
         }
-        Apply(floor, ceiling); // also re-applies after Steam reset the GPU to auto
+        Apply(floor, max_clock); // also re-applies after Steam reset the GPU to auto
     }
 }
 

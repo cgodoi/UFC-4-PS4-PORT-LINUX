@@ -154,7 +154,9 @@ s32 PS4_SYSV_ABI sceVideoOutSetFlipRate(s32 handle, s32 rate) {
     std::printf("VideoOut: game sets flip rate %d (caller %p)%s\n", rate, __builtin_return_address(0),
                 override_rate >= 0 ? " -> overridden by BB_FLIP_RATE" : "");
     std::fflush(stdout);
-    driver->GetPort(handle)->flip_rate = override_rate >= 0 ? override_rate : rate;
+    auto* flip_port = driver->GetPort(handle);
+    flip_port->flip_rate = override_rate >= 0 ? override_rate : rate;
+    flip_port->launcher_flip_rate = flip_port->flip_rate; // ufc4: the menu may override it live
     return ORBIS_OK;
 }
 

@@ -494,6 +494,53 @@ void Menu() {
         "Выключена: всё рисуется в разрешении пресета, смена — через перезапуск. Авто включает "
         "её на мощных дискретных видеокартах. Применяется после перезапуска игры."));
     }
+    // ufc4: power, live: the frame rate and the GPU governor's power profile.
+    ImGui::SeparatorText(BbSettings::MenuText("Power", "Питание"));
+    {
+        const char* rates[] = {BbSettings::MenuText("Launcher default", "Как в лаунчере"), "60 FPS", "30 FPS"};
+        const int fps = s.frame_rate.load();
+        int current = fps == 60 ? 1 : fps == 30 ? 2 : 0;
+        if (ImGui::BeginCombo(BbSettings::MenuText("Frame rate", "Частота кадров"), rates[current])) {
+            for (int i = 0; i < 3; ++i) {
+                if (ImGui::Selectable(rates[i], i == current)) {
+                    Store(s.frame_rate, i == 1 ? 60 : i == 2 ? 30 : -1, i != current);
+                }
+            }
+            ImGui::EndCombo();
+        }
+        Hint(BbSettings::MenuText(
+            "Applies at once. 30 FPS (the console's) needs about half the power of 60: on a Legion Go "
+            "~15-18 W instead of ~22-28 W. UFC 4 keeps its speed at either.",
+            "Сразу. 30 FPS требует примерно вдвое меньше мощности."));
+
+        static const bool governor = [] {
+            const char* v = std::getenv("BB_GPU_GOVERNOR");
+            return v && *v == '1';
+        }();
+        ImGui::BeginDisabled(!governor);
+        const int profile = s.gpu_profile.load();
+        const auto profile_label = [](int g) {
+            return g < 0 ? BbSettings::MenuText("Launcher default", "Как в лаунчере") : BbSettings::GpuProfiles[g].label;
+        };
+        if (ImGui::BeginCombo(BbSettings::MenuText("GPU power", "Питание GPU"), profile_label(profile))) {
+            for (int g = -1; g < BbSettings::GpuProfileCount; ++g) {
+                if (ImGui::Selectable(profile_label(g), g == profile)) {
+                    Store(s.gpu_profile, g, g != profile);
+                }
+            }
+            ImGui::EndCombo();
+        }
+        ImGui::EndDisabled();
+        Hint(governor ? BbSettings::MenuText(
+                            "Applies at once. Caps the GPU clock the port's governor may use: lower "
+                            "leaves more of a handheld's shared power to the CPU and runs cooler; at 60 FPS "
+                            "a heavy scene may then miss some frames.",
+                            "Сразу. Ограничивает частоту GPU.")
+                      : BbSettings::MenuText("Needs the port's GPU governor (BB_GPU_GOVERNOR=1, AMD on Linux; "
+                                             "the handheld launchers turn it on).",
+                                             "Нужен регулятор GPU порта (BB_GPU_GOVERNOR=1)."));
+    }
+
     // ufc4: the presenter's upscaling, live (FSR 1 to the window, then RCAS sharpening).
     ImGui::SeparatorText(BbSettings::MenuText("Upscaling", "Масштабирование"));
     {

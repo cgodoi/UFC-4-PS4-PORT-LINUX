@@ -68,6 +68,15 @@ void Set(Values& v, const std::string& key, const std::string& value) {
         (key == "fsr1" ? v.fsr1 : v.rcas) = value == "launcher" ? -1 : (i != 0 ? 1 : 0);
     } else if (key == "rcas_attenuation") {
         v.rcas_attenuation = value == "launcher" ? -1.0f : Clamp(f, 0.0f, 2.0f);
+    } else if (key == "frame_rate") {
+        v.frame_rate = value == "60" ? 60 : value == "30" ? 30 : -1;
+    } else if (key == "gpu_profile") {
+        v.gpu_profile = -1;
+        for (int g = 0; g < GpuProfileCount; ++g) {
+            if (value == GpuProfiles[g].key) {
+                v.gpu_profile = g;
+            }
+        }
     } else if (key == "game_resolution") {
         v.game_res = 0; // "launcher" or anything unknown
         for (int r = 1; r < GameResCount; ++r) {
@@ -274,6 +283,9 @@ void Save() {
     put("reactive_max", fixed(v.reactive_max, 2));
     put("debug_view", std::to_string(v.debug_view.load()));
     put("show_fps", flag(v.show_fps));
+    put("frame_rate", v.frame_rate > 0 ? std::to_string(v.frame_rate.load()) : std::string("launcher")); // ufc4, live
+    put("gpu_profile", v.gpu_profile >= 0 && v.gpu_profile < GpuProfileCount ? std::string(GpuProfiles[v.gpu_profile].key)
+                                                                             : std::string("launcher"));
     put("fsr1", v.fsr1 < 0 ? std::string("launcher") : flag(v.fsr1 != 0)); // ufc4, live
     put("rcas", v.rcas < 0 ? std::string("launcher") : flag(v.rcas != 0));
     put("rcas_attenuation", v.rcas_attenuation < 0 ? std::string("launcher") : fixed(v.rcas_attenuation, 2));

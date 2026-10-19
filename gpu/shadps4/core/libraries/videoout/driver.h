@@ -35,6 +35,7 @@ struct VideoOutPort {
     std::condition_variable vo_cv;
     std::condition_variable vblank_cv;
     int flip_rate = 0;
+    int launcher_flip_rate = 0; ///< ufc4: the game's / BB_FLIP_RATE's, when the menu leaves it
     int prev_index = -1;
     bool is_open = false;
     bool is_hdr = false;

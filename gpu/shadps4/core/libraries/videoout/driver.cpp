@@ -26,6 +26,7 @@ extern "C" __declspec(dllimport) int __stdcall K32GetProcessMemoryInfo(void* pro
 #include "bbport_wait_trace.h"
 #include "bbport_gpu_governor.h"
 #include "bbport_vblank_sync.h"
+#include "bbport_settings.h"
 #include "video_core/renderer_vulkan/vk_frame_capture.h"
 #include "common/debug.h"
 #include "common/thread.h"
@@ -944,6 +945,14 @@ void VideoOutDriver::PresentThread(std::stop_token token) {
             DrawLastFrame();
             timer.End();
             continue;
+        }
+
+        // ufc4: the in-game menu's frame rate (60 or 30), live; else the game's / launcher's.
+        {
+            const int fps = BbSettings::Get().frame_rate;
+            const int hz = int(EmulatorSettings.GetVblankFrequency());
+            main_port.flip_rate =
+                fps > 0 && hz >= fps ? hz / fps - 1 : main_port.launcher_flip_rate;
         }
 
         // Check if it's time to take a request.

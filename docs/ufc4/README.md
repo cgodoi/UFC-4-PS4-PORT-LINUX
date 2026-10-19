@@ -72,7 +72,13 @@ when it starts, so the choice is saved to `bbport.ini` (`game_resolution`) and a
 scales it to the window; gamescope's FSR on top cost ~10 FPS here (a second upscale to the panel's
 2560x1600) and is not needed once the TDP is enough. The menu's *Upscaling* section switches the
 port's FSR 1 and RCAS sharpening and sets the sharpness, live (`bbport.ini` `fsr1`, `rcas`,
-`rcas_attenuation`; "launcher" keeps `BB_FSR1`, `BB_RCAS`, `BB_RCAS_ATTENUATION`). The menu is in English unless `bbport.ini`
+`rcas_attenuation`; "launcher" keeps `BB_FSR1`, `BB_RCAS`, `BB_RCAS_ATTENUATION`).
+
+The menu's *Power* section, live: **Frame rate** (the launcher's, 60 or 30 FPS: the port's flip
+rate, so UFC 4 keeps its speed) and, with the GPU governor on, **GPU power**: *Performance* (the
+governor may raise the GPU's minimum to 2000 MHz, the driver may go to 2700), *Balanced* (capped at
+1600 MHz) or *Battery* (capped at 1200 MHz), which leave more of the shared power budget to the
+CPU (`bbport.ini` `frame_rate`, `gpu_profile`). The menu is in English unless `bbport.ini`
 says `menu_language=ru`.
 
 ### Display sync (experimental, off: `BB_VBLANK_SYNC=1`)
