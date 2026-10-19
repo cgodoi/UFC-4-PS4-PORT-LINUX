@@ -62,9 +62,9 @@ inline constexpr int OutputDefault = 1; ///< 1920x1080, the game's own size
 
 /// ufc4: the resolution the game renders at (its video output), chosen in the menu and applied
 /// on restart (bbport.ini game_resolution). 0: the launcher's (BB_INTERNAL_WIDTH/HEIGHT).
-inline constexpr int GameResCount = 5;
-inline constexpr int GameResWidths[GameResCount] = {0, 960, 1280, 1600, 1920};
-inline constexpr int GameResHeights[GameResCount] = {0, 540, 720, 900, 1080};
+inline constexpr int GameResCount = 7;
+inline constexpr int GameResWidths[GameResCount] = {0, 960, 1024, 1152, 1280, 1600, 1920};
+inline constexpr int GameResHeights[GameResCount] = {0, 540, 576, 648, 720, 900, 1080};
 /// The menu's game resolution, read once at start: {0, 0} when the launcher decides.
 int GameResolutionWidth();
 int GameResolutionHeight();
@@ -106,6 +106,10 @@ struct Values {
     /// on the Steam Deck and older GPUs), -1 auto (strong discrete GPUs), 1 on. On restart.
     std::atomic<int> live_resolution{0};
     std::atomic<int> game_res{0}; ///< ufc4: index into GameResWidths (restart)
+    /// ufc4: the presenter's FSR 1 and RCAS, live; -1: the launcher's (BB_FSR1, BB_RCAS,
+    /// BB_RCAS_ATTENUATION).
+    std::atomic<int> fsr1{-1}, rcas{-1};
+    std::atomic<float> rcas_attenuation{-1.0f}; ///< 0 sharpest .. 2
     /// Why FSR 4 cannot run (assets, device features), or null. Set by the renderer.
     std::atomic<const char*> fsr4_problem{nullptr};
     std::atomic<bool> fsr4_supported{false}, fsr411_supported{false};

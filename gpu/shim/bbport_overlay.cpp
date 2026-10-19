@@ -14,6 +14,7 @@
 #include <cstdlib>
 #include <cstring>
 #include "bbport_settings.h"
+#include "core/emulator_settings.h"
 #include "imgui.h"
 #include "imgui_impl_vulkan.h"
 #include "video_core/renderer_vulkan/vk_instance.h"
@@ -493,6 +494,33 @@ void Menu() {
         "Выключена: всё рисуется в разрешении пресета, смена — через перезапуск. Авто включает "
         "её на мощных дискретных видеокартах. Применяется после перезапуска игры."));
     }
+    // ufc4: the presenter's upscaling, live (FSR 1 to the window, then RCAS sharpening).
+    ImGui::SeparatorText(BbSettings::MenuText("Upscaling", "Масштабирование"));
+    {
+        bool fsr = s.fsr1 >= 0 ? s.fsr1 != 0 : EmulatorSettings.IsFsrEnabled();
+        if (ImGui::Checkbox(BbSettings::MenuText("FSR 1 upscaling", "Масштабирование FSR 1"), &fsr)) {
+            Store(s.fsr1, int(fsr), true);
+        }
+        Hint(BbSettings::MenuText(
+            "AMD FSR 1 scales the game's resolution to the window. Off: plain bilinear scaling "
+            "(softer, a little cheaper).",
+            "AMD FSR 1 масштабирует разрешение игры до окна. Выкл: обычное билинейное."));
+        bool rcas = s.rcas >= 0 ? s.rcas != 0 : EmulatorSettings.IsRcasEnabled();
+        if (ImGui::Checkbox(BbSettings::MenuText("Sharpening (RCAS)", "Резкость (RCAS)"), &rcas)) {
+            Store(s.rcas, int(rcas), true);
+        }
+        ImGui::BeginDisabled(!rcas);
+        const float attenuation = s.rcas_attenuation >= 0.0f ? s.rcas_attenuation.load()
+                                                             : EmulatorSettings.GetRcasAttenuation() / 1000.0f;
+        float sharpness = std::clamp(1.0f - attenuation / 2.0f, 0.0f, 1.0f);
+        if (ImGui::SliderFloat(BbSettings::MenuText("Sharpness", "Резкость"), &sharpness, 0.0f, 1.0f, "%.2f")) {
+            Store(s.rcas_attenuation, (1.0f - sharpness) * 2.0f, true);
+        }
+        ImGui::EndDisabled();
+        Hint(BbSettings::MenuText("Applies at once. 1 = sharpest; lower values soften the image.",
+                                  "Сразу. 1 — максимальная резкость."));
+    }
+
     // ufc4: the resolution the game renders at. The game sizes its render targets from its video
     // output when it starts, so the choice applies on restart (bbport.ini game_resolution).
     ImGui::SeparatorText(BbSettings::MenuText("Game resolution (restart required)",

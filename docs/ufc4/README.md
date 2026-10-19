@@ -66,11 +66,13 @@ minimum 1000 → 1400 MHz within 6 s, then it settled at 1200-1300 MHz, ~17-18 W
 | 1280x720 | 28 W | 60 FPS flat, ~27 W, ~76 °C |
 
 The game resolution is in the in-game menu (Insert or L3+R3 → *Game resolution*: the launcher's,
-960x540, 1280x720, 1600x900 or 1920x1080). The game sizes its render targets from its video output
+960x540, 1024x576, 1152x648, 1280x720, 1600x900 or 1920x1080). The game sizes its render targets from its video output
 when it starts, so the choice is saved to `bbport.ini` (`game_resolution`) and applied by
 *Apply and restart game*; it wins over the launcher's `BB_INTERNAL_WIDTH/HEIGHT`. The port's FSR 1
 scales it to the window; gamescope's FSR on top cost ~10 FPS here (a second upscale to the panel's
-2560x1600) and is not needed once the TDP is enough. The menu is in English unless `bbport.ini`
+2560x1600) and is not needed once the TDP is enough. The menu's *Upscaling* section switches the
+port's FSR 1 and RCAS sharpening and sets the sharpness, live (`bbport.ini` `fsr1`, `rcas`,
+`rcas_attenuation`; "launcher" keeps `BB_FSR1`, `BB_RCAS`, `BB_RCAS_ATTENUATION`). The menu is in English unless `bbport.ini`
 says `menu_language=ru`.
 
 ### Display sync (experimental, off: `BB_VBLANK_SYNC=1`)

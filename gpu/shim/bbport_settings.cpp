@@ -64,6 +64,10 @@ void Set(Values& v, const std::string& key, const std::string& value) {
         v.debug_view = std::clamp(i, 0, DebugViewCount - 1);
     } else if (key == "show_fps") {
         v.show_fps = i != 0;
+    } else if (key == "fsr1" || key == "rcas") {
+        (key == "fsr1" ? v.fsr1 : v.rcas) = value == "launcher" ? -1 : (i != 0 ? 1 : 0);
+    } else if (key == "rcas_attenuation") {
+        v.rcas_attenuation = value == "launcher" ? -1.0f : Clamp(f, 0.0f, 2.0f);
     } else if (key == "game_resolution") {
         v.game_res = 0; // "launcher" or anything unknown
         for (int r = 1; r < GameResCount; ++r) {
@@ -270,6 +274,9 @@ void Save() {
     put("reactive_max", fixed(v.reactive_max, 2));
     put("debug_view", std::to_string(v.debug_view.load()));
     put("show_fps", flag(v.show_fps));
+    put("fsr1", v.fsr1 < 0 ? std::string("launcher") : flag(v.fsr1 != 0)); // ufc4, live
+    put("rcas", v.rcas < 0 ? std::string("launcher") : flag(v.rcas != 0));
+    put("rcas_attenuation", v.rcas_attenuation < 0 ? std::string("launcher") : fixed(v.rcas_attenuation, 2));
     put("game_resolution", v.game_res > 0 ? std::to_string(GameResWidths[v.game_res]) + "x" +
                                                 std::to_string(GameResHeights[v.game_res])
                                           : std::string("launcher")); // ufc4, applied at start

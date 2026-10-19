@@ -13,6 +13,7 @@
 #include "video_core/renderdoc.h"
 #include "video_core/renderer_vulkan/vk_platform.h"
 #include "bbport_overlay.h"
+#include "bbport_settings.h"
 #include "bbport_timeline.h"
 #include "video_core/renderer_vulkan/vk_temporal_upscaler.h"
 #include "video_core/renderer_vulkan/vk_presenter.h"
@@ -400,6 +401,20 @@ Frame* Presenter::PrepareFrame(const Libraries::VideoOut::BufferAttributeGroup& 
     // the post process pass still sRGB encoded and has to be decoded there instead.
     pp_settings.srgb_input =
         attribute.attrib.pixel_format == Libraries::VideoOut::PixelFormat::A2R10G10B10Srgb;
+
+    // ufc4: FSR 1 and RCAS from the in-game menu, live (else the launcher's, set at creation).
+    {
+        const auto& menu = BbSettings::Get();
+        if (const int fsr = menu.fsr1; fsr >= 0) {
+            fsr_settings.enable = fsr != 0;
+        }
+        if (const int rcas = menu.rcas; rcas >= 0) {
+            fsr_settings.use_rcas = rcas != 0;
+        }
+        if (const float attenuation = menu.rcas_attenuation; attenuation >= 0.0f) {
+            fsr_settings.rcas_attenuation = attenuation;
+        }
+    }
 
     // Numbered here, in command order; marked where the commands are recorded.
     const u32 stream = draw_scheduler.CrumbStream();
