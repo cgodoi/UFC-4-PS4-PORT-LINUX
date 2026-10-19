@@ -323,6 +323,7 @@ bool EqueueInternal::AddSmallTimer(EqueueEvent& ev) {
     {
         std::scoped_lock lock{m_mutex};
         m_small_timers[st.event.ident] = std::move(st);
+        ++m_small_timer_changes; // ufc4: a re-armed ident keeps the map's size (BB_TIMER_SLEEP)
     }
     m_cond.notify_all(); // ufc3: wakes a waiter that fell back to the regular wait
     return true;
@@ -393,10 +394,11 @@ int EqueueInternal::WaitForSmallTimer(OrbisKernelEvent* ev, int num, u32 micros)
                 }
                 const auto wake = target - std::chrono::microseconds{spin_us};
                 if (wake > curr_clock) {
-                    const auto timers = m_small_timers.size();
+                    // Any add, re-arm or removal changes the earliest deadline: wake for it.
+                    const u64 changes = m_small_timer_changes;
                     const auto predicate = [&] {
                         count = GetTriggeredEvents(ev, num);
-                        return count > 0 || m_small_timers.size() != timers;
+                        return count > 0 || m_small_timer_changes != changes;
                     };
                     m_cond.wait_until(lock, wake, predicate);
                     if (count > 0)

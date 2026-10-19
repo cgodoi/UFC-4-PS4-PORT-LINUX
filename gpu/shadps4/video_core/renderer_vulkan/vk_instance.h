@@ -321,11 +321,6 @@ public:
                vk12_features.storageBuffer8BitAccess;
     }
 
-    /// ufc4: presents carry ids and can be waited for (BB_VBLANK_SYNC).
-    bool IsPresentWaitSupported() const {
-        return present_wait;
-    }
-
     /// VK_KHR_shader_clock is supported.
     bool IsShaderSubgroupClockSupported() const {
         return shader_clock && shader_clock_features.shaderSubgroupClock;
@@ -603,7 +598,6 @@ private:
     bool image_2d_view_of_3d{};
     bool image_view_min_lod{};
     bool shader_clock{};
-    bool present_wait{}; // ufc4: VK_KHR_present_id + VK_KHR_present_wait (BB_VBLANK_SYNC)
     bool compute_shader_derivatives{};
     bool mixed_float_dot_product{}; // bbport: VK_VALVE_shader_mixed_float_dot_product (FSR 4.1.1)
     bool cooperative_matrix{};      // bbport: VK_KHR_cooperative_matrix (FSR 4.1.1 FP8 variant)

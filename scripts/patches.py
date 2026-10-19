@@ -23,8 +23,8 @@ import xml.etree.ElementTree as ET
 from pathlib import Path
 
 EBOOT_BASE=0x400000
-TITLE_ID='CUSA13795'
-APP_VERSION='01.21'
+TITLE_ID='CUSA06534'  # UFC 3 update 1.14; run.sh passes UFC 4's (CUSA14204 28.00)
+APP_VERSION='01.14'
 # bbport.ini keys (the in-game menu, the launcher) -> "<file>/<patch name>". The patches are
 # community work from illusionyy/PS-Game-Patch (https://github.com/illusionyy/PS-Game-Patch):
 # 60 FPS Unlock and Disable Motion Blur by illusion, the 1080p Pro resolution patch by TroyWarez.

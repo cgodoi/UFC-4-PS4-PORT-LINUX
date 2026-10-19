@@ -2,7 +2,6 @@
 // SPDX-License-Identifier: GPL-2.0-or-later
 
 #include <algorithm>
-#include <atomic>
 #include <limits>
 #include "common/assert.h"
 #include "common/logging/log.h"
@@ -12,7 +11,6 @@
 #include "video_core/renderer_vulkan/vk_instance.h"
 #include "video_core/renderer_vulkan/vk_scheduler.h"
 #include "video_core/renderer_vulkan/vk_swapchain.h"
-#include "bbport_vblank_sync.h"
 
 namespace Vulkan {
 
@@ -141,15 +139,7 @@ bool Swapchain::AcquireNextImage() {
 }
 
 bool Swapchain::Present() {
-    // ufc4 (BB_VBLANK_SYNC): each present carries an id, so its scanout can be waited for.
-    static std::atomic<u64> next_present_id{0};
-    const u64 present_id = instance.IsPresentWaitSupported() ? ++next_present_id : 0;
-    const vk::PresentIdKHR present_ids = {
-        .swapchainCount = 1,
-        .pPresentIds = &present_id,
-    };
     const vk::PresentInfoKHR present_info = {
-        .pNext = present_id ? &present_ids : nullptr,
         .waitSemaphoreCount = 1,
         .pWaitSemaphores = &present_ready[image_index],
         .swapchainCount = 1,
@@ -158,9 +148,6 @@ bool Swapchain::Present() {
     };
 
     auto result = instance.GetPresentQueue().presentKHR(present_info);
-    if (present_id && (result == vk::Result::eSuccess || result == vk::Result::eSuboptimalKHR)) {
-        BbVblankSync::Presented(instance.GetDevice(), swapchain, present_id);
-    }
     if (result == vk::Result::eErrorOutOfDateKHR || result == vk::Result::eSuboptimalKHR) {
         needs_recreation = true;
     } else if (result == vk::Result::eErrorSurfaceLostKHR) {
@@ -303,9 +290,6 @@ void Swapchain::SetSurfaceProperties() {
 
 void Swapchain::Destroy() {
     vk::Device device = instance.GetDevice();
-    if (swapchain) {
-        BbVblankSync::Forget(swapchain); // ufc4: no present wait may use it any more
-    }
     // ufc3: vkDeviceWaitIdle needs every queue externally synchronized, but the recording
     // threads submit on their own (BB_ASYNC_SUBMIT): resizing, moving or minimizing a window
     // crashed the NVIDIA driver here. The swapchain's images are used by the graphics and

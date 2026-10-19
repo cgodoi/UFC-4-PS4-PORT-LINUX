@@ -2,7 +2,6 @@
 // SPDX-License-Identifier: GPL-2.0-or-later
 
 #include <cstdio>
-#include <cstdlib>
 #include <boost/container/static_vector.hpp>
 #include <fmt/format.h>
 #include <fmt/ranges.h>
@@ -238,8 +237,7 @@ bool Instance::CreateDevice() {
         vk::PhysicalDeviceImage2DViewOf3DFeaturesEXT, vk::PhysicalDeviceShaderClockFeaturesKHR,
         vk::PhysicalDeviceComputeShaderDerivativesFeaturesKHR,
         vk::PhysicalDeviceShaderMixedFloatDotProductFeaturesVALVE,
-        vk::PhysicalDeviceCooperativeMatrixFeaturesKHR, vk::PhysicalDeviceShaderFloat8FeaturesEXT,
-        vk::PhysicalDevicePresentIdFeaturesKHR, vk::PhysicalDevicePresentWaitFeaturesKHR>();
+        vk::PhysicalDeviceCooperativeMatrixFeaturesKHR, vk::PhysicalDeviceShaderFloat8FeaturesEXT>();
     features = feature_chain.get().features;
 
     const vk::StructureChain properties_chain = physical_device.getProperties2<
@@ -397,18 +395,6 @@ bool Instance::CreateDevice() {
     if (compute_shader_derivatives) {
         compute_shader_derivatives_features =
             feature_chain.get<vk::PhysicalDeviceComputeShaderDerivativesFeaturesKHR>();
-    }
-    // ufc4 (BB_VBLANK_SYNC=1): present ids and present waits tell when each frame reached the
-    // screen, so the virtual vblank can follow the display's (bbport_vblank_sync.cpp).
-    // AMD only (1): NVIDIA's driver (580) divides by zero inside vkWaitForPresentKHR under
-    // Wayland/XWayland. 2: any GPU.
-    if (const char* sync = std::getenv("BB_VBLANK_SYNC");
-        sync && (*sync == '2' || (*sync == '1' && properties.vendorID == 0x1002))) {
-        present_wait =
-            feature_chain.get<vk::PhysicalDevicePresentIdFeaturesKHR>().presentId &&
-            feature_chain.get<vk::PhysicalDevicePresentWaitFeaturesKHR>().presentWait &&
-            add_extension(VK_KHR_PRESENT_ID_EXTENSION_NAME) &&
-            add_extension(VK_KHR_PRESENT_WAIT_EXTENSION_NAME);
     }
     shader_clock = add_extension(VK_KHR_SHADER_CLOCK_EXTENSION_NAME);
     if (shader_clock) {
@@ -617,8 +603,6 @@ bool Instance::CreateDevice() {
         vk::PhysicalDeviceShaderClockFeaturesKHR{
             .shaderSubgroupClock = shader_clock_features.shaderSubgroupClock,
         },
-        vk::PhysicalDevicePresentIdFeaturesKHR{.presentId = true},
-        vk::PhysicalDevicePresentWaitFeaturesKHR{.presentWait = true},
         vk::PhysicalDeviceComputeShaderDerivativesFeaturesKHR{
             .computeDerivativeGroupQuads =
                 compute_shader_derivatives_features.computeDerivativeGroupQuads,
@@ -682,10 +666,6 @@ bool Instance::CreateDevice() {
     }
     if (!image_view_min_lod) {
         device_chain.unlink<vk::PhysicalDeviceImageViewMinLodFeaturesEXT>();
-    }
-    if (!present_wait) {
-        device_chain.unlink<vk::PhysicalDevicePresentIdFeaturesKHR>();
-        device_chain.unlink<vk::PhysicalDevicePresentWaitFeaturesKHR>();
     }
     if (!shader_clock) {
         device_chain.unlink<vk::PhysicalDeviceShaderClockFeaturesKHR>();

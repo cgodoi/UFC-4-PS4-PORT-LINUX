@@ -49,8 +49,10 @@ Bazzite/SteamOS), re-applies them when Steam resets the GPU to auto, and logs ev
 | `BB_GPU_GOV_START` / `_MIN` / `_MAX` | 1300 / 800 / 2000 MHz | the minimum clock it starts at and its range (2200 MHz starved the CPU at 24 W) |
 | `BB_GPU_GOV_CEILING` | 2700 MHz | the range's maximum, left to the driver |
 
-The launcher (`launchers/legion-go/ufc4.sh`) saves the GPU's setting before the game and restores
-it afterwards. Without the governor it can hold a fixed minimum instead (`BB_GPU_MIN_MHZ`,
+The governor saves the GPU's setting when it starts and restores it when the game exits, from any
+launcher (a menu restart keeps the original); `launchers/legion-go/ufc4.sh` also restores it
+after a crash. It stays off with an uncapped virtual vblank (UFC 3's 480 Hz): there is no frame
+deadline then. Without the governor it can hold a fixed minimum instead (`BB_GPU_MIN_MHZ`,
 default 1600, 0 = do not touch the GPU), re-applied every 2 s.
 
 Measured in the same kind of fight: menus at 800 MHz / 14-15 W / 62 °C; the fight raised the
@@ -81,14 +83,12 @@ governor may raise the GPU's minimum to 2000 MHz, the driver may go to 2700), *B
 CPU (`bbport.ini` `frame_rate`, `gpu_profile`). The menu is in English unless `bbport.ini`
 says `menu_language=ru`.
 
-### Display sync (experimental, off: `BB_VBLANK_SYNC=1`)
+### Display sync (tried, removed)
 
-The port's virtual vblank runs on its own clock. `bbport_vblank_sync.cpp` waits for each presented
-frame to reach the screen (`VK_KHR_present_wait`) and the present thread phase-locks its ticks to
-those times. Under gamescope the "on screen" time follows the port's own present (it locked at
-60 FPS with a +1.5 ms offset that did not converge, and drifted when frames ran late), so it does
-not help there; a lock check turns it off when the tick period drifts > 1 % from nominal. AMD only
-(NVIDIA's 580 driver divides by zero inside `vkWaitForPresentKHR`; `BB_VBLANK_SYNC=2` forces it).
+A display-synchronised virtual vblank (`VK_KHR_present_wait`, the present thread phase-locked to
+when frames reached the screen) did not help under gamescope: the "on screen" time follows the
+port's own present, so the lock never converged. It was removed (it also waited on the swapchain
+from a second thread, which Vulkan does not allow).
 What looked like display judder was mostly a power shortage: with enough TDP the frame time is
 flat without it.
 
@@ -134,9 +134,11 @@ closed; sending and receiving still fail as unplugged.
 ### Thread start — `src/runtime_thread.c`
 EA's `pthread_create` wrapper (`+0x8b1b0`) hands each new thread its entry and argument through a
 32-slot ring; a thread that starts after 32 more creations reads a reused slot and calls garbage
-(the `NetLib` thread jumped into the host heap, only without a debugger). With
-`BB_THREAD_START_WAIT=1` thread creation returns once the new thread is about to run its guest
-entry, as a new PS4 thread starts at once.
+(the `NetLib` thread jumped into the host heap, only without a debugger). EA's thread trampoline
+(`+0x8b0a0`) only reads the slot, so thread creation copies the slot into the new thread and
+hands the trampoline the copy (the trampoline is found by its code; the log says `EA slot
+copied`): reusing the slot no longer matters. `BB_THREAD_START_WAIT=1` (on) also makes creation
+return once the new thread is about to run, as a new PS4 thread starts at once.
 
 ### Short timers — `gpu/shadps4/core/libraries/kernel/equeue.cpp`
 The game's small HR timers (EA's timer queues, frame pacing) were waited for with a

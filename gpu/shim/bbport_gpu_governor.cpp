@@ -105,6 +105,32 @@ bool Apply(int minimum, int maximum) {
            WriteFile(od, "c");
 }
 
+// The GPU's setting before the governor changed it, restored when the process exits (any
+// launcher; launchers/legion-go/ufc4.sh also restores it, for a crash). Saved in Start().
+std::string saved_level;
+int saved_min = -1, saved_max = -1;
+std::mutex apply_mutex;         // the thread's writes and the exit's restore never interleave
+std::atomic<bool> stopped{false};
+
+void Restore() {
+    std::scoped_lock lk{apply_mutex};
+    stopped = true; // the governor thread writes nothing after this
+    if (device.empty() || saved_level.empty()) {
+        return;
+    }
+    // Back to manual to set the range (written in a valid order), then the old level.
+    WriteFile(device + "/power_dpm_force_performance_level", "manual");
+    if (saved_min > 0 && saved_max > 0) {
+        const std::string od = device + "/pp_od_clk_voltage";
+        const bool lowering = saved_max < CurrentClock(0);
+        const std::string set_min = "s 0 " + std::to_string(saved_min), set_max = "s 1 " + std::to_string(saved_max);
+        WriteFile(od, lowering ? set_min : set_max);
+        WriteFile(od, lowering ? set_max : set_min);
+        WriteFile(od, "c");
+    }
+    WriteFile(device + "/power_dpm_force_performance_level", saved_level);
+}
+
 void Run() {
     const int lowest = Env("BB_GPU_GOV_MIN", 800);
     const int highest = Env("BB_GPU_GOV_MAX", 2000);
@@ -113,7 +139,12 @@ void Run() {
     int calm = 0;
     std::printf("GPU governor: %s, minimum clock %d MHz (range %d-%d MHz)\n", device.c_str(), floor,
                 lowest, highest);
-    Apply(floor, ceiling);
+    {
+        std::scoped_lock lk{apply_mutex};
+        if (!stopped) {
+            Apply(floor, ceiling);
+        }
+    }
     for (;;) {
         std::this_thread::sleep_for(std::chrono::milliseconds(500));
         // The in-game menu's GPU power profile, live: the highest minimum and the range's maximum.
@@ -150,6 +181,10 @@ void Run() {
             std::fflush(stdout);
             floor = next;
         }
+        std::scoped_lock lk{apply_mutex};
+        if (stopped) {
+            return;
+        }
         Apply(floor, max_clock); // also re-applies after Steam reset the GPU to auto
     }
 }
@@ -164,15 +199,38 @@ void OnFlip(double interval_ms, double target_ms) {
     if (!enabled) {
         return;
     }
+    // A frame deadline only exists when the vblank paces the frames: with an uncapped virtual
+    // vblank (UFC 3's 480 Hz) the period says nothing about the frame time; no governor then.
+    if (target_ms < 1000.0 / 120.0) {
+        return;
+    }
     std::call_once(started, [] {
         device = FindDevice();
         if (device.empty()) {
             std::printf("GPU governor: no writable AMD GPU clock interface: off\n");
             return;
         }
+        // The setting from before the first start: a restart from the menu (the process
+        // re-executes itself) inherits it instead of taking the governor's own as the original.
+        if (const char* saved = std::getenv("BB_GPU_GOV_SAVED"); saved && *saved) {
+            char level[32] = {};
+            std::sscanf(saved, "%31[^,],%d,%d", level, &saved_min, &saved_max);
+            saved_level = level;
+        } else {
+            std::string level = ReadFile(device + "/power_dpm_force_performance_level");
+            while (!level.empty() && (level.back() == '\n' || level.back() == ' ')) {
+                level.pop_back();
+            }
+            saved_level = level;
+            saved_min = CurrentClock(0);
+            saved_max = CurrentClock(1);
+            const std::string value = saved_level + "," + std::to_string(saved_min) + "," + std::to_string(saved_max);
+            setenv("BB_GPU_GOV_SAVED", value.c_str(), 1);
+        }
+        std::atexit(Restore);
         std::thread(Run).detach();
     });
-    if (device.empty() || target_ms <= 0) {
+    if (device.empty()) {
         return;
     }
     frames.fetch_add(1, std::memory_order_relaxed);

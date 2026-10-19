@@ -80,7 +80,8 @@ non-Steam games. Read [docs/ufc4/README.md](docs/ufc4/README.md) for the setting
 - The system functions UFC 4 uses and UFC 3 does not (Remote Play, live streaming, microphone,
   `sceKernelIsProspero`, PFT flag, POSIX rwlocks).
 - Offline networking that lets EA's network startup (UPnP) succeed instead of crashing.
-- Thread creation that waits for the new thread to start (EA's 32-slot `pthread_create` ring).
+- Thread creation that copies EA's `pthread_create` hand-over slot (a 32-slot ring that was
+  reused before the NetLib thread read it).
 - Short game timers that sleep instead of spinning (power and heat on handhelds).
 - A frame-deadline **GPU clock governor** for AMD APUs (the driver's governor keeps the GPU at
   its lowest clock because this port leaves it idle much of the time).

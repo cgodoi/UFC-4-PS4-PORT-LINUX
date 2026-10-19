@@ -39,6 +39,7 @@ typedef struct GuestThread {
     char name[32];
     int detached, finished, joined, host_owned;
     int started; /* ufc4: set just before the guest entry runs (BB_THREAD_START_WAIT) */
+    void *ea_slot[2]; /* EA's ring slot {argument, function}, copied at creation (ea_trampoline) */
     jmp_buf exit_jump;
     struct GuestThread *next;
 } GuestThread;
@@ -53,6 +54,18 @@ static int start_wait(void) {
     static int value=-1;
     if (value<0) { const char *e=getenv("BB_THREAD_START_WAIT"); value=e && *e=='1'; }
     return value;
+}
+/* EA's thread trampoline (UFC 3 and UFC 4 engine): EA's pthread_create wrapper stores
+ * {argument, function} in a 32-slot ring and starts this trampoline with the slot's address; the
+ * trampoline only reads the slot (mov rdi,[rbx]; call [rbx+8]). A thread that starts after 32
+ * more creations would read a reused slot and call garbage (UFC 4's NetLib thread), so the slot
+ * is copied into the thread at creation and the trampoline gets the copy: the race is gone, not
+ * just narrowed. Found by its code, not its address. */
+static int ea_trampoline(GuestEntry entry) {
+    static const unsigned char head[]={0x55,0x48,0x89,0xe5,0x41,0x57,0x41,0x56,0x53,0x50,0x48,0x89,0xfb};
+    static const unsigned char call[]={0x48,0x8b,0x3b,0xff,0x53,0x08};
+    const unsigned char *code=(const unsigned char *)(uintptr_t)entry;
+    return !memcmp(code,head,sizeof(head)) && !memcmp(code+0x98,call,sizeof(call));
 }
 static ThreadAttr *attributes;
 static GuestThread *threads;
@@ -238,6 +251,10 @@ static int32_t create(GuestThread **out,ThreadAttr **attr_slot,GuestEntry entry,
     if (!t) return ERR(12);
     if (a) { t->attr=*a; t->attr.next=NULL; }
     t->entry=entry; t->argument=argument; t->detached=t->attr.detached;
+    if (argument && ea_trampoline(entry)) {
+        memcpy(t->ea_slot,argument,sizeof(t->ea_slot));
+        t->argument=t->ea_slot;
+    }
     snprintf(t->name,sizeof(t->name),"%s",name ? name : "guest");
     pthread_attr_t host;
     pthread_attr_init(&host);
@@ -256,7 +273,7 @@ static int32_t create(GuestThread **out,ThreadAttr **attr_slot,GuestEntry entry,
     pthread_mutex_lock(&lock); ++created;
     if (start_wait()) while (!t->started) pthread_cond_wait(&started_cond,&lock);
     pthread_mutex_unlock(&lock);
-    printf("Runtime: guest thread '%s' created (stack=%llu, prio=%d, entry=%#llx)\n",t->name,(unsigned long long)stack,t->attr.prio,(unsigned long long)(uintptr_t)entry);
+    printf("Runtime: guest thread '%s' created (stack=%llu, prio=%d, entry=%#llx%s)\n",t->name,(unsigned long long)stack,t->attr.prio,(unsigned long long)(uintptr_t)entry,t->argument==t->ea_slot ? ", EA slot copied" : "");
     return 0;
 }
 static ABI int32_t thread_create(GuestThread **out,ThreadAttr **attr,GuestEntry entry,void *argument,const char *name) {

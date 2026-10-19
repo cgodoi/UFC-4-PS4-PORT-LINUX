@@ -174,6 +174,7 @@ public:
             {
                 std::scoped_lock lock{m_mutex};
                 erased = m_small_timers.erase(id) > 0;
+                ++m_small_timer_changes;
             }
             m_cond.notify_all(); // ufc4: a waiter sleeping until this timer (BB_TIMER_SLEEP)
             return erased;
@@ -192,6 +193,7 @@ private:
     std::vector<EqueueEvent> m_events;
     std::condition_variable m_cond;
     std::unordered_map<u64, SmallTimer> m_small_timers;
+    u64 m_small_timer_changes = 0; ///< ufc4: bumped (under m_mutex) by every add, re-arm or removal
 };
 
 EqueueInternal* GetEqueue(OrbisKernelEqueue eq);

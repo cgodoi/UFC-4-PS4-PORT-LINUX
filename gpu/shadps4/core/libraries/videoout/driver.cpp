@@ -25,7 +25,6 @@ extern "C" __declspec(dllimport) int __stdcall K32GetProcessMemoryInfo(void* pro
 #include "bbport_heap_sites.h"
 #include "bbport_wait_trace.h"
 #include "bbport_gpu_governor.h"
-#include "bbport_vblank_sync.h"
 #include "bbport_settings.h"
 #include "video_core/renderer_vulkan/vk_frame_capture.h"
 #include "common/debug.h"
@@ -142,6 +141,7 @@ void VideoOutDriver::Close(s32 handle) {
     // Mark as closed
     main_port.is_open = false;
     main_port.flip_rate = 0;
+    main_port.launcher_flip_rate = 0; // a reopened port starts from the game's default again
     main_port.prev_index = -1;
 
     // Clear port information
@@ -869,77 +869,9 @@ void VideoOutDriver::PresentThread(std::stop_token token) {
     // next vblank tick.
     const bool immediate_flips = frame_limit != 0 || EmulatorSettings.IsUncappedVblank();
 
-    // ufc4 (BB_VBLANK_SYNC=1): the ticks keep a fixed phase to the display's refresh, measured
-    // by when presented frames reach the screen (bbport_vblank_sync.cpp): BB_VBLANK_PHASE (0.25)
-    // of a period after it, so a flip never lands on the edge of a refresh. A phase-locked loop:
-    // each tick moves by a tenth of its phase error, at most a twentieth of a period. The display
-    // must refresh at the vblank rate (BB_VBLANK_HZ). Without a recent measurement: the plain timer.
-    // Not const: switched off when the loop does not lock (see the check below).
-    static bool vblank_sync = [] {
-        const char* v = std::getenv("BB_VBLANK_SYNC");
-        return v && (*v == '1' || *v == '2');
-    }();
-    static const double vblank_phase = [] {
-        const char* v = std::getenv("BB_VBLANK_PHASE");
-        return v && *v ? std::clamp(std::atof(v), 0.0, 0.95) : 0.25;
-    }();
-    auto tick_start = std::chrono::steady_clock::now();
-    const auto end_tick = [&] {
-        const s64 scanout = BbVblankSync::LastScanoutNs();
-        const s64 start_ns = std::chrono::duration_cast<std::chrono::nanoseconds>(
-                                 tick_start.time_since_epoch())
-                                 .count();
-        const s64 period = vblank_period.count();
-        if (!vblank_sync || scanout == 0 || start_ns - scanout > 500'000'000) {
-            timer.End();
-            return;
-        }
-        s64 phase = (start_ns - scanout) % period;
-        if (phase < 0) {
-            phase += period;
-        }
-        s64 error = phase - s64(vblank_phase * double(period));
-        if (error >= period / 2) {
-            error -= period;
-        } else if (error < -period / 2) {
-            error += period;
-        }
-        const s64 correction = std::clamp<s64>(error / 10, -period / 20, period / 20);
-        static s64 error_sum, error_abs, ticks, interval_sum, intervals, windows;
-        static auto previous_start = tick_start;
-        error_sum += error;
-        error_abs += error < 0 ? -error : error;
-        // The tick period, without stalls (loading screens hold this thread up for whole periods).
-        const s64 interval = std::chrono::duration_cast<std::chrono::nanoseconds>(tick_start - previous_start).count();
-        previous_start = tick_start;
-        if (interval > period / 2 && interval < period * 3 / 2) {
-            interval_sum += interval;
-            ++intervals;
-        }
-        if (++ticks == 300) {
-            const double mean_period = intervals ? double(interval_sum) / intervals : double(period);
-            std::printf("VBlank sync: phase error mean %+.2f ms, mean |error| %.2f ms, tick period %.3f ms "
-                        "(target %.0f%% of %.2f ms after the scanout)\n",
-                        error_sum / 300 / 1e6, error_abs / 300 / 1e6, mean_period / 1e6,
-                        vblank_phase * 100, period / 1e6);
-            // A scanout time that follows the tick (the frame shown as soon as it arrives, not on
-            // a refresh) makes the loop chase itself and stretch the period: the game would slow
-            // down. More than 1 % off the nominal period: back to the plain timer for good.
-            if (++windows > 1 && std::abs(mean_period - double(period)) > 0.01 * double(period)) {
-                vblank_sync = false;
-                std::printf("VBlank sync: not locking to the display (period %.3f ms instead of %.3f): off\n",
-                            mean_period / 1e6, period / 1e6);
-            }
-            std::fflush(stdout);
-            error_sum = error_abs = ticks = interval_sum = intervals = 0;
-        }
-        std::this_thread::sleep_until(tick_start + std::chrono::nanoseconds(period - correction));
-    };
-
     while (!token.stop_requested()) {
         timer.Start();
-        tick_start = std::chrono::steady_clock::now();
-        const auto tick_deadline = tick_start + vblank_period;
+        const auto tick_deadline = std::chrono::steady_clock::now() + vblank_period;
 
         if (DebugState.IsGuestThreadsPaused()) {
             DrawLastFrame();
@@ -959,7 +891,7 @@ void VideoOutDriver::PresentThread(std::stop_token token) {
             const int fps = restart_only ? menu.startup_frame_rate : menu.frame_rate.load();
             const int hz = int(EmulatorSettings.GetVblankFrequency());
             main_port.flip_rate =
-                fps > 0 && hz >= fps ? hz / fps - 1 : main_port.launcher_flip_rate;
+                fps > 0 && hz >= fps ? hz / fps - 1 : main_port.launcher_flip_rate.load();
         }
 
         // Check if it's time to take a request.
@@ -1010,7 +942,7 @@ void VideoOutDriver::PresentThread(std::stop_token token) {
         }
 
         if (!immediate_flips || main_port.flip_rate != 0) {
-            end_tick();
+            timer.End();
             continue;
         }
         while (!token.stop_requested()) {

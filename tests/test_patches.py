@@ -13,17 +13,17 @@ SEGMENTS = [(0, 0x6000000)]
 
 EXTERNAL = """<?xml version="1.0"?>
 <Patch>
-  <TitleID><ID>CUSA13795</ID></TitleID>
-  <Metadata Title="CTR" Name="On" Author="x" PatchVer="1.0" AppVer="01.21" AppElf="eboot.bin" isEnabled="true">
+  <TitleID><ID>CUSA06534</ID></TitleID>
+  <Metadata Title="UFC3" Name="On" Author="x" PatchVer="1.0" AppVer="01.14" AppElf="eboot.bin" isEnabled="true">
     <PatchList><Line Type="bytes" Address="0x00500000" Value="9090"/></PatchList>
   </Metadata>
-  <Metadata Title="CTR" Name="Off" Author="x" PatchVer="1.0" AppVer="01.21" AppElf="eboot.bin">
+  <Metadata Title="UFC3" Name="Off" Author="x" PatchVer="1.0" AppVer="01.14" AppElf="eboot.bin">
     <PatchList><Line Type="bytes32" Address="0x00500010" Value="0x11223344"/></PatchList>
   </Metadata>
-  <Metadata Title="CTR" Name="Mask" Author="x" PatchVer="1.0" AppVer="01.21" AppElf="eboot.bin" isEnabled="true">
+  <Metadata Title="UFC3" Name="Mask" Author="x" PatchVer="1.0" AppVer="01.14" AppElf="eboot.bin" isEnabled="true">
     <PatchList><Line Type="mask" Address="" Value="90 90"/></PatchList>
   </Metadata>
-  <Metadata Title="CTR" Name="Old" Author="x" PatchVer="1.0" AppVer="01.00" AppElf="eboot.bin" isEnabled="true">
+  <Metadata Title="UFC3" Name="Old" Author="x" PatchVer="1.0" AppVer="01.00" AppElf="eboot.bin" isEnabled="true">
     <PatchList><Line Type="bytes" Address="0x00500020" Value="90"/></PatchList>
   </Metadata>
 </Patch>
@@ -35,7 +35,7 @@ class ExternalPatchTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as tmp:
             folder = Path(tmp)
             (folder / 'extra.xml').write_text(EXTERNAL)
-            (folder / 'other.xml').write_text(EXTERNAL.replace('CUSA13795', 'CUSA99999'))
+            (folder / 'other.xml').write_text(EXTERNAL.replace('CUSA06534', 'CUSA99999'))
             found = external_patches(folder)
             self.assertEqual([key for key, _, _ in found], ['extra.xml/On', 'extra.xml/Off', 'extra.xml/Mask'])
             # isEnabled selects On and Mask; Mask is skipped whole for its unsupported line.
@@ -86,8 +86,8 @@ def tiny_elf(code, vaddr=0x1000, offset=0x100):
 
 class SignatureTests(unittest.TestCase):
     """Lines with a Signature: written at Address when the code is there, else where it is found."""
-    SIGNED = """<?xml version="1.0"?><Patch><TitleID><ID>CUSA13795</ID></TitleID>
-      <Metadata Title="CTR" Name="S" Author="x" AppVer="01.21" AppElf="eboot.bin" isEnabled="true">
+    SIGNED = """<?xml version="1.0"?><Patch><TitleID><ID>CUSA06534</ID></TitleID>
+      <Metadata Title="UFC3" Name="S" Author="x" AppVer="01.14" AppElf="eboot.bin" isEnabled="true">
         <PatchList><Line Type="bytes" Address="{address}" Value="9090" Signature="aa bb ?? dd" SignatureOffset="0x2"/></PatchList>
       </Metadata></Patch>"""
 
@@ -113,13 +113,14 @@ class SignatureTests(unittest.TestCase):
 
 
 class GamePatchTests(unittest.TestCase):
-    """The bundled CTR patches, chosen through bbport.ini patch_* keys (the in-game menu)."""
+    """The bundled patches (patches/UFC4.xml) and the bbport.ini settings."""
 
     def test_bundled_files_match_their_game(self):
         # patches/UFC4.xml: UFC 4 update 28.00 only. Every menu key names a bundled patch.
         found = external_patches(ROOT / 'patches', app_version='28.00', title_id='CUSA14204')
         keys = {key for key, _, _ in found}
         self.assertIn('UFC4.xml/60 FPS (engine)', keys)
+        self.assertEqual(external_patches(ROOT / 'patches'), [])  # the defaults: UFC 3 1.14
         for patch in GAME_PATCH_KEYS.values():
             self.assertIn(patch, keys)
         self.assertEqual(external_patches(ROOT / 'patches', app_version='28.00', title_id='CUSA99999'), [])
@@ -145,18 +146,30 @@ class GamePatchTests(unittest.TestCase):
             self.assertEqual(sorted(writes), [(0x487160 + shift, b'\x01'), (0x1274eeb + shift, b'\x01')])
 
     def test_every_bundled_patch_is_signed_and_found_at_its_address(self):
-        # The signatures must match at their published addresses in the firmware 5.05 build
-        # (out/eboot.elf when a prepared game of that build is present; skipped otherwise).
+        # The signatures must match at their published addresses in the game's supported build
+        # (out/eboot.elf when a prepared game is present; skipped otherwise). The prepared game is
+        # the one whose patch signatures are found in it.
         elf_path = ROOT / 'out' / 'eboot.elf'
         if not elf_path.is_file():
             self.skipTest('no prepared game in out/')
         elf = elf_path.read_bytes()
-        found = external_patches(ROOT / 'patches')
-        for key, _, meta in found:
-            for line in meta.iter('Line'):
+        checked = 0
+        for title, version in (('CUSA06534', '01.14'), ('CUSA14204', '28.00')):
+            lines = [(key, line) for key, _, meta in external_patches(ROOT / 'patches', version, title)
+                     for line in meta.iter('Line')]
+            def site(line):
+                try:
+                    return patches.locate(line, int(line.get('Address'), 0) - EBOOT_BASE, elf)
+                except ValueError:
+                    return None
+            if not any(site(line) is not None for _, line in lines):
+                continue  # another game's executable
+            for key, line in lines:
                 self.assertTrue(line.get('Signature'), key)
-                offset = int(line.get('Address'), 0) - EBOOT_BASE
-                self.assertEqual(patches.locate(line, offset, elf), offset, key)
+                self.assertEqual(site(line), int(line.get('Address'), 0) - EBOOT_BASE, key)
+                checked += 1
+        if not checked:
+            self.skipTest('the prepared game has no bundled patches')
 
     def test_read_settings(self):
         with tempfile.TemporaryDirectory() as tmp:
