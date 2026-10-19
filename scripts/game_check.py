@@ -24,12 +24,18 @@ SUPPORTED = {
     '46c2477702ae5d3fbff3a1911f10841aa150d20941d515ffb3edec75153f055b': dict(
         name='ufc3', title='CUSA06534', version='01.14', game='EA SPORTS UFC 3', update='CUSA06534-patch',
         modules=('libc.prx', 'libSceFios2.prx'), patches=False),
+    # UFC 4 (US, update 28.00 backport for 5.05/6.72/7.02): same EA engine and native modules.
+    # Experimental; its own variant keeps UFC 3's address-keyed diagnostics off.
+    '73862ae3556543cd3fdc2c95ed46a608ce26f9a75b44f15f7f93809a68372602': dict(
+        name='ufc4', title='CUSA14204', version='28.00', game='EA SPORTS UFC 4', update='CUSA14204-patch',
+        modules=('libc.prx', 'libSceFios2.prx'), patches=False, variant='ufc4'),
 }
 BY_TITLE = {p['title']: p for p in SUPPORTED.values()}
 # Images that are known NOT to be 1.14: the base game's executable (1.00). With a 1.14 param.sfo
 # these mean the update's eboot.bin was not copied in.
 OLD_IMAGES = {
     '1dc99716a77f5411834d004d6becc3c829e382a244aa0dcbd63932a7eeee0bf1': '01.00',
+    'ea0ef73a0919fc54a309af2c62f92a3a45dfeb955f3c8f83df93fce43401f928': '01.00',  # UFC 4 base
 }
 # Other builds of the supported update (none known for UFC 3).
 KNOWN_672 = set()
@@ -57,7 +63,7 @@ def profile(game, image_hash=None):
     except (OSError, ValueError, IndexError, StopIteration, KeyError):
         image_hash = None
     if image_hash in SUPPORTED:
-        return dict(SUPPORTED[image_hash], variant='5.05')
+        return dict({'variant': '5.05'}, **SUPPORTED[image_hash])
     if image_hash and problem(game, image_hash) is None and os.environ.get('BB_SKIP_GAME_CHECK') != '1':
         info = sfo_info(game)
         return dict(BY_TITLE[info['TITLE_ID']], variant='6.72+', known=image_hash in KNOWN_672)

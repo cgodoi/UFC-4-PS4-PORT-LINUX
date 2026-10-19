@@ -126,6 +126,28 @@ static ABI int32_t *net_errno_loc(void) { return &net_errno; }
 static ABI int32_t net_pool_create(const char *name,int size,int flags) { (void)name; (void)size; (void)flags; return new_id(); }
 static ABI int32_t net_pool_destroy(int id) { (void)id; return 0; }
 static ABI int32_t net_unreachable(void) { net_errno=51; return NET_ENETUNREACH; }
+/* ufc4: EA's network startup creates its UPnP object over a UDP socket and fails as a whole
+ * without one (the game then reads the freed NetConn state and crashes). For that profile,
+ * offline sockets can be created, bound, configured and closed; sending and receiving still
+ * fail as unplugged. Other profiles keep every socket call unreachable. */
+static int sockets_open_offline(void) {
+    static int value=-1;
+    if (value<0) { const char *p=getenv("BB_GAME_PROFILE"); value=p && !strcmp(p,"ufc4"); }
+    return value;
+}
+static ABI int32_t net_socket(const char *name,int family,int type,int protocol) {
+    (void)name; (void)family; (void)type; (void)protocol;
+    return sockets_open_offline() ? new_id() : net_unreachable();
+}
+static ABI int32_t net_socket_ok(void) { return sockets_open_offline() ? 0 : net_unreachable(); }
+/* PS4 sockaddr_in: sin_len, sin_family, port (network order), address, 8 zero bytes. */
+static ABI int32_t net_getsockname(int s,uint8_t *addr,uint32_t *length) {
+    if (!sockets_open_offline()) return net_unreachable();
+    if (!addr || !length || *length<16) { net_errno=22; return NET_EINVAL; }
+    const uint16_t port=(uint16_t)(49152+(s&0x3fff));
+    memset(addr,0,16); addr[0]=16; addr[1]=2; addr[2]=(uint8_t)(port>>8); addr[3]=(uint8_t)port;
+    *length=16; return 0;
+}
 static ABI int32_t net_epoll_create(const char *name,int flags) { (void)name; (void)flags; return new_id(); }
 static ABI int32_t net_epoll_destroy(int id) { (void)id; return 0; }
 static ABI int32_t net_resolver_create(const char *name,int pool,int flags) { (void)name; (void)pool; (void)flags; return new_id(); }
@@ -492,6 +514,8 @@ static ABI int32_t mouse_read(int32_t handle,unsigned char *data,int32_t count) 
 }
 static ABI int32_t mouse_close(int32_t handle) { (void)handle; return 0; }
 static ABI int32_t audio_in_open(void) { return AUDIO_IN_NOT_OPENED; }
+/* ufc4: sceAppContentGetPftFlag(bool *flag): no PFT (PS4 full install). */
+static ABI int32_t pft_flag(uint8_t *flag) { if (flag) *flag=0; return 0; }
 
 
 /* ---- UFC 3 (EA SPORTS UFC 3): the remaining online, dialog and device entry points, offline ---- */
@@ -548,12 +572,12 @@ static const RuntimeExport exports[]={
     {"sceNetResolverCreate",net_resolver_create}, {"sceNetResolverDestroy",net_resolver_destroy},
     {"sceNetHtons",net_htons}, {"sceNetNtohs",net_ntohs}, {"sceNetHtonl",net_htonl}, {"sceNetNtohl",net_ntohl},
     {"sceNetInetPton",net_pton}, {"sceNetInetNtop",net_ntop},
-    {"sceNetSocket",net_unreachable}, {"sceNetConnect",net_unreachable}, {"sceNetBind",net_unreachable},
+    {"sceNetSocket",net_socket}, {"sceNetConnect",net_unreachable}, {"sceNetBind",net_socket_ok},
     {"sceNetListen",net_unreachable}, {"sceNetAccept",net_unreachable}, {"sceNetSend",net_unreachable},
     {"sceNetSendto",net_unreachable}, {"sceNetRecv",net_unreachable}, {"sceNetRecvfrom",net_unreachable},
-    {"sceNetSetsockopt",net_unreachable}, {"sceNetGetsockopt",net_unreachable},
-    {"sceNetGetsockname",net_unreachable}, {"sceNetShutdown",net_unreachable},
-    {"sceNetSocketClose",net_unreachable}, {"sceNetSocketAbort",net_unreachable},
+    {"sceNetSetsockopt",net_socket_ok}, {"sceNetGetsockopt",net_unreachable},
+    {"sceNetGetsockname",net_getsockname}, {"sceNetShutdown",net_socket_ok},
+    {"sceNetSocketClose",net_socket_ok}, {"sceNetSocketAbort",net_unreachable},
     {"sceNetEpollControl",net_unreachable}, {"sceNetEpollWait",net_unreachable}, {"sceNetEpollAbort",net_unreachable},
     {"sceNetResolverStartNtoa",net_unreachable}, {"sceNetResolverStartAton",net_unreachable},
     {"sceNetCtlGetState",netctl_state}, {"sceNetCtlGetInfo",netctl_info},
@@ -685,5 +709,10 @@ static const RuntimeExport exports[]={
     {"sceAudioInOpen",audio_in_open},
     {"sceDiscMapIsRequestOnHDD",discmap_on_hdd}, {"sceDiscMap_8A828CAEE7EDD5E9",discmap_8a82},
     {"sceVoiceInit",ok_void}, {"sceVoiceEnd",ok_void},
+    /* ufc4: the entry points UFC 4 adds over UFC 3 (offline console, no microphone, a PS4). */
+    {"sceRemoteplayInitialize",ok_void}, {"sceRemoteplayProhibit",ok_void}, {"sceRemoteplayTerminate",ok_void},
+    {"sceGameLiveStreamingPermitLiveStreaming",ok_void}, {"sceNpWebApiAddHttpRequestHeader",ok_void},
+    {"sceAudioInIsSharedDevice",ok_void}, {"sceAudioInGetSilentState",audio_in_open},
+    {"sceAppContentGetPftFlag",pft_flag}, {"sceKernelIsProspero",ok_void},
 };
 uintptr_t runtime_services_resolve(const char *name) { return RUNTIME_LOOKUP(exports,name); }

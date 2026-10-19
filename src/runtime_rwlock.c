@@ -142,7 +142,15 @@ static ABI int32_t rw_destroy(Rwlock **handle) {
     }
     pthread_mutex_unlock(&registry_lock); return error(e);
 }
+/* ufc4: the POSIX names (libkernel pthread_rwlock_*) return a plain errno, not 0x8002xxxx. */
+static int32_t posix_rw(int32_t result) { return result ? (int32_t)((uint32_t)result & 0xffff) : 0; }
+static ABI int32_t posix_rw_read(Rwlock **r) { return posix_rw(rw_read(r)); }
+static ABI int32_t posix_rw_write(Rwlock **r) { return posix_rw(rw_write(r)); }
+static ABI int32_t posix_rw_unlock(Rwlock **r) { return posix_rw(rw_unlock(r)); }
 uintptr_t runtime_rwlock_resolve(const char *name) {
+    if (runtime_nid_equals(name,"iGjsr1WAtI0#libkernel")) return (uintptr_t)posix_rw_read;
+    if (runtime_nid_equals(name,"sIlRvQqsN2Y#libkernel")) return (uintptr_t)posix_rw_write;
+    if (runtime_nid_equals(name,"EgmLo6EWgso#libkernel")) return (uintptr_t)posix_rw_unlock;
     if (runtime_nid_equals(name,"6ULAa0fq4jA#libkernel")) return (uintptr_t)rw_init;
     if (runtime_nid_equals(name,"BB+kb08Tl9A#libkernel")) return (uintptr_t)rw_destroy;
     if (runtime_nid_equals(name,"Ox9i0c7L5w0#libkernel")) return (uintptr_t)rw_read;
