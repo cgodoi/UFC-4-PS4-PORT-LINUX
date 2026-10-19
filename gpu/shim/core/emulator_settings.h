@@ -8,6 +8,11 @@
 
 enum GpuReadbacksMode : int { Disabled, Relaxed, Precise };
 
+namespace BbSettings {
+int GameResolutionWidth();
+int GameResolutionHeight();
+} // namespace BbSettings
+
 class EmulatorSettingsImpl {
 public:
     static EmulatorSettingsImpl* GetInstance() { static EmulatorSettingsImpl s; return &s; }
@@ -20,8 +25,9 @@ public:
         return v ? std::strtol(v, nullptr, 10) : fallback;
     }
     s32 GetGpuId() { static const auto value = s32(Number("BB_GPU_ID", -1)); return value; }
-    u32 GetInternalScreenWidth() { static const auto value = u32(Number("BB_INTERNAL_WIDTH", 1920)); return value; }
-    u32 GetInternalScreenHeight() { static const auto value = u32(Number("BB_INTERNAL_HEIGHT", 1080)); return value; }
+    // ufc4: the in-game menu's game resolution (bbport.ini game_resolution) wins over the launcher's.
+    u32 GetInternalScreenWidth() { static const auto value = u32(BbSettings::GameResolutionWidth() ? BbSettings::GameResolutionWidth() : Number("BB_INTERNAL_WIDTH", 1920)); return value; }
+    u32 GetInternalScreenHeight() { static const auto value = u32(BbSettings::GameResolutionHeight() ? BbSettings::GameResolutionHeight() : Number("BB_INTERNAL_HEIGHT", 1080)); return value; }
     std::string GetPresentMode() { const char* v = std::getenv("BB_PRESENT_MODE"); return v ? v : "Mailbox"; }
     int GetRcasAttenuation() { static const auto value = int(Number("BB_RCAS_ATTENUATION", 250)); return value; }
     // bbport: Relaxed by default: without readbacks FaceGen reads stale GPU-written vertices

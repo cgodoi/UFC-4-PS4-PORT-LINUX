@@ -492,6 +492,9 @@ s32 PS4_SYSV_ABI sceVideoOutSetWindowModeMargins(s32 handle, s32 top, s32 bottom
 }
 
 void RegisterLib(Core::Loader::SymbolsResolver* sym) {
+    std::printf("VideoOut: game resolution %ux%u (%s)\n", EmulatorSettings.GetInternalScreenWidth(),
+                EmulatorSettings.GetInternalScreenHeight(),
+                BbSettings::GameResolutionWidth() ? "in-game menu, bbport.ini game_resolution" : "launcher");
     driver = std::make_unique<VideoOutDriver>(EmulatorSettings.GetInternalScreenWidth(),
                                               EmulatorSettings.GetInternalScreenHeight());
 

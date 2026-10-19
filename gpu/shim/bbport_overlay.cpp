@@ -493,6 +493,39 @@ void Menu() {
         "Выключена: всё рисуется в разрешении пресета, смена — через перезапуск. Авто включает "
         "её на мощных дискретных видеокартах. Применяется после перезапуска игры."));
     }
+    // ufc4: the resolution the game renders at. The game sizes its render targets from its video
+    // output when it starts, so the choice applies on restart (bbport.ini game_resolution).
+    ImGui::SeparatorText(BbSettings::MenuText("Game resolution (restart required)",
+                                              "Разрешение игры (после перезапуска)"));
+    {
+        const char* env_w = std::getenv("BB_INTERNAL_WIDTH");
+        const char* env_h = std::getenv("BB_INTERNAL_HEIGHT");
+        char launcher[96];
+        std::snprintf(launcher, sizeof(launcher), BbSettings::MenuText("Launcher default (%sx%s)", "Как в лаунчере (%sx%s)"),
+                      env_w ? env_w : "1920", env_h ? env_h : "1080");
+        const auto label = [&](int r) -> std::string {
+            if (r == 0) {
+                return launcher;
+            }
+            return std::to_string(BbSettings::GameResWidths[r]) + "x" + std::to_string(BbSettings::GameResHeights[r]);
+        };
+        const int current = s.game_res.load();
+        if (ImGui::BeginCombo(BbSettings::MenuText("Resolution", "Разрешение"), label(current).c_str())) {
+            for (int r = 0; r < BbSettings::GameResCount; ++r) {
+                if (ImGui::Selectable(label(r).c_str(), r == current)) {
+                    Store(s.game_res, r, r != current);
+                }
+            }
+            ImGui::EndCombo();
+        }
+        Hint(BbSettings::MenuText(
+            "What the game renders at; FSR scales it to the window. Lower is lighter on the GPU and "
+            "the power budget (handhelds): 960x540 held 60 FPS at ~20-22 W on a Legion Go, 1280x720 "
+            "needed ~25-28 W. Applies after restarting the game.",
+            "Разрешение рендера игры; FSR масштабирует его до окна. Ниже — легче для GPU и бюджета "
+            "мощности. Применяется после перезапуска."));
+    }
+
     // Game patches (patches/CrashTeamRacing.xml): bbport's own game-effect patches went with its
     // Bloodborne profile (removed 2026-10-09).
     ImGui::SeparatorText(BbSettings::MenuText("Game patches (restart required)",
@@ -519,6 +552,7 @@ void Menu() {
         restart |= s.game_patches[g] != s.startup_game_patches[g];
     }
     restart |= s.fps_unlocked != s.startup_fps_unlocked;
+    restart |= s.game_res != s.startup_game_res;
     if (restart) {
         ImGui::TextColored(ImVec4(1.0f, 0.75f, 0.3f, 1.0f), "%s",
                            BbSettings::MenuText("Changes apply after restarting the game",

@@ -64,6 +64,13 @@ void Set(Values& v, const std::string& key, const std::string& value) {
         v.debug_view = std::clamp(i, 0, DebugViewCount - 1);
     } else if (key == "show_fps") {
         v.show_fps = i != 0;
+    } else if (key == "game_resolution") {
+        v.game_res = 0; // "launcher" or anything unknown
+        for (int r = 1; r < GameResCount; ++r) {
+            if (value == std::to_string(GameResWidths[r]) + "x" + std::to_string(GameResHeights[r])) {
+                v.game_res = r;
+            }
+        }
     } else if (key == "fps_unlocked") {
         v.fps_unlocked = i != 0;
     } else if (key == "menu_pos") {
@@ -185,6 +192,7 @@ void Load() {
     v.startup_model_lod = v.model_lod;
     v.startup_output_res = v.output_res;
     v.startup_live_resolution = v.live_resolution;
+    v.startup_game_res = v.game_res;
 }
 
 void ConfigureUpscalerSupport(bool fsr4, bool fsr411) {
@@ -199,6 +207,16 @@ void ConfigureUpscalerSupport(bool fsr4, bool fsr411) {
                     UpscalerName(requested));
         v.upscaler = UpscalerFsr3;
     }
+}
+
+int GameResolutionWidth() {
+    const int r = Get().startup_game_res;
+    return r > 0 && r < GameResCount ? GameResWidths[r] : 0;
+}
+
+int GameResolutionHeight() {
+    const int r = Get().startup_game_res;
+    return r > 0 && r < GameResCount ? GameResHeights[r] : 0;
 }
 
 bool FixedRenderSession() {
@@ -252,6 +270,9 @@ void Save() {
     put("reactive_max", fixed(v.reactive_max, 2));
     put("debug_view", std::to_string(v.debug_view.load()));
     put("show_fps", flag(v.show_fps));
+    put("game_resolution", v.game_res > 0 ? std::to_string(GameResWidths[v.game_res]) + "x" +
+                                                std::to_string(GameResHeights[v.game_res])
+                                          : std::string("launcher")); // ufc4, applied at start
     put("fps_unlocked", flag(v.fps_unlocked)); // read by run.sh and the Windows launcher at start
     put("fsr4_auto_exposure", flag(v.fsr4_auto_exposure));
     put("fsr4_invert_jitter", flag(v.fsr4_invert_jitter));

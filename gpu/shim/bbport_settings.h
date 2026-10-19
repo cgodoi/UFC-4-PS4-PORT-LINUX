@@ -60,12 +60,21 @@ inline constexpr int OutputHeights[] = {720, 1080, 1440, 2160};
 inline constexpr int OutputCount = 4;
 inline constexpr int OutputDefault = 1; ///< 1920x1080, the game's own size
 
+/// ufc4: the resolution the game renders at (its video output), chosen in the menu and applied
+/// on restart (bbport.ini game_resolution). 0: the launcher's (BB_INTERNAL_WIDTH/HEIGHT).
+inline constexpr int GameResCount = 5;
+inline constexpr int GameResWidths[GameResCount] = {0, 960, 1280, 1600, 1920};
+inline constexpr int GameResHeights[GameResCount] = {0, 540, 720, 900, 1080};
+/// The menu's game resolution, read once at start: {0, 0} when the launcher decides.
+int GameResolutionWidth();
+int GameResolutionHeight();
+
 /// SacredFire: controller ports for split screen (bbport.ini port.1..4: SDL GUID or part of the
 /// gamepad name; the runtime re-reads the file when the menu saves it).
 constexpr int ControllerPorts = 4;
 struct Values {
     std::array<std::array<char, 64>, ControllerPorts> ports{}; ///< guarded by PortsMutex()
-    std::atomic<MenuLanguage> menu_language{MenuLanguage::Russian};
+    std::atomic<MenuLanguage> menu_language{MenuLanguage::English}; ///< ufc4: English unless bbport.ini says ru
     std::atomic<int> upscaler{UpscalerFsr3};
     std::atomic<int> preset{NativeAA};
     std::atomic<bool> sharpen{true};
@@ -96,6 +105,7 @@ struct Values {
     /// Live resolution and preset changes (run.sh): 0 off by default (startup patch, fastest
     /// on the Steam Deck and older GPUs), -1 auto (strong discrete GPUs), 1 on. On restart.
     std::atomic<int> live_resolution{0};
+    std::atomic<int> game_res{0}; ///< ufc4: index into GameResWidths (restart)
     /// Why FSR 4 cannot run (assets, device features), or null. Set by the renderer.
     std::atomic<const char*> fsr4_problem{nullptr};
     std::atomic<bool> fsr4_supported{false}, fsr411_supported{false};
@@ -110,6 +120,7 @@ struct Values {
     int startup_model_lod = 0;
     int startup_output_res = OutputDefault;
     int startup_live_resolution = 0;
+    int startup_game_res = 0;
 };
 
 Values& Get();
