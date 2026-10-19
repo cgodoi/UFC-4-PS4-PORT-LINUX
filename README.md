@@ -61,6 +61,14 @@ cd out/dev/UFC4Native
 ./ufc3.sh --play /path/CUSA14204-merged        # the "ufc4" profile is picked from the executable
 ```
 
+Coming from shadPS4? Its save data (career, created fighters, profile) imports into the port
+with the game closed; the port's current saves are backed up first (tested with a UFC 4 career):
+
+```bash
+python3 tools/import_shadps4_saves.py CUSA14204 \
+    --shadps4 ~/.local/share/shadPS4/home/1000/savedata --data ~/.local/share/UFC3Native
+```
+
 For handhelds there are ready-made launchers in [`launchers/legion-go/`](launchers/legion-go/)
 (30 FPS, and 60 FPS with the PC memory model, 720p and the GPU governor); add them to Steam as
 non-Steam games. Read [docs/ufc4/README.md](docs/ufc4/README.md) for the settings that matter
