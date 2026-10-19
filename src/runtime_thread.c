@@ -38,11 +38,22 @@ typedef struct GuestThread {
     ThreadAttr attr;
     char name[32];
     int detached, finished, joined, host_owned;
+    int started; /* ufc4: set just before the guest entry runs (BB_THREAD_START_WAIT) */
     jmp_buf exit_jump;
     struct GuestThread *next;
 } GuestThread;
 
 static pthread_mutex_t lock=PTHREAD_MUTEX_INITIALIZER;
+/* ufc4 (BB_THREAD_START_WAIT=1): thread creation returns once the new thread is about to run its
+ * guest entry, as a new PS4 thread starts at once. EA's pthread_create wrapper hands the entry
+ * and argument over in a 32-slot ring; a thread that starts after 32 more creations reads a
+ * reused slot and calls garbage (UFC 4's NetLib thread). */
+static pthread_cond_t started_cond=PTHREAD_COND_INITIALIZER;
+static int start_wait(void) {
+    static int value=-1;
+    if (value<0) { const char *e=getenv("BB_THREAD_START_WAIT"); value=e && *e=='1'; }
+    return value;
+}
 static ThreadAttr *attributes;
 static GuestThread *threads;
 static _Thread_local GuestThread *current;
@@ -212,6 +223,7 @@ static void *host_start(void *p) {
     GuestThread *t=p;
     attach(t);
     set_host_name(t->name);
+    if (start_wait()) { pthread_mutex_lock(&lock); t->started=1; pthread_cond_broadcast(&started_cond); pthread_mutex_unlock(&lock); }
     if (!setjmp(t->exit_jump)) t->result=t->entry(t->argument);
     runtime_kernel_thread_exit();
     runtime_thread_keys_cleanup();
@@ -241,8 +253,10 @@ static int32_t create(GuestThread **out,ThreadAttr **attr_slot,GuestEntry entry,
     pthread_attr_destroy(&host);
     if (e) { fprintf(stderr,"STOP: host pthread_create failed: %d\n",e); exit(21); }
     if (t->detached) pthread_detach(t->host);
-    pthread_mutex_lock(&lock); ++created; pthread_mutex_unlock(&lock);
-    printf("Runtime: guest thread '%s' created (stack=%llu, prio=%d)\n",t->name,(unsigned long long)stack,t->attr.prio);
+    pthread_mutex_lock(&lock); ++created;
+    if (start_wait()) while (!t->started) pthread_cond_wait(&started_cond,&lock);
+    pthread_mutex_unlock(&lock);
+    printf("Runtime: guest thread '%s' created (stack=%llu, prio=%d, entry=%#llx)\n",t->name,(unsigned long long)stack,t->attr.prio,(unsigned long long)(uintptr_t)entry);
     return 0;
 }
 static ABI int32_t thread_create(GuestThread **out,ThreadAttr **attr,GuestEntry entry,void *argument,const char *name) {
