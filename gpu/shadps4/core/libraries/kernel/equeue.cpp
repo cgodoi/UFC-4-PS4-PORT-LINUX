@@ -6,6 +6,7 @@
 #include <algorithm>
 #include <chrono>
 #include <cstdio>
+#include <cstdlib>
 #include <mutex>
 #include <string>
 #include <vector>
@@ -372,6 +373,36 @@ int EqueueInternal::WaitForSmallTimer(OrbisKernelEvent* ev, int num, u32 micros)
                 if (count > 0)
                     return count;
                 continue; // a new small timer: keep spinning on it
+            }
+            // ufc4 (BB_TIMER_SLEEP=1): sleep until shortly before the earliest timer (or the
+            // wait's own deadline) instead of yielding in a loop the whole time. On a handheld
+            // the spinning cores take power from the threads doing the work. TriggerEvent and
+            // AddSmallTimer notify m_cond, so events and new (earlier) timers still wake it.
+            static const long spin_us = [] {
+                const char* on = std::getenv("BB_TIMER_SLEEP");
+                if (!on || *on != '1') {
+                    return -1L;
+                }
+                const char* us = std::getenv("BB_TIMER_SPIN_US");
+                return us ? std::atol(us) : 200L;
+            }();
+            if (spin_us >= 0) {
+                auto target = wait_end_us;
+                for (const auto& [id, st] : m_small_timers) {
+                    target = std::min(target, st.added + st.interval);
+                }
+                const auto wake = target - std::chrono::microseconds{spin_us};
+                if (wake > curr_clock) {
+                    const auto timers = m_small_timers.size();
+                    const auto predicate = [&] {
+                        count = GetTriggeredEvents(ev, num);
+                        return count > 0 || m_small_timers.size() != timers;
+                    };
+                    m_cond.wait_until(lock, wake, predicate);
+                    if (count > 0)
+                        return count;
+                    continue; // re-check the timers (expired, added or deleted)
+                }
             }
         }
         std::this_thread::yield();

@@ -170,8 +170,13 @@ public:
     }
     bool RemoveSmallTimer(u64 id) {
         if (HasSmallTimer()) {
-            std::scoped_lock lock{m_mutex};
-            return m_small_timers.erase(id) > 0;
+            bool erased;
+            {
+                std::scoped_lock lock{m_mutex};
+                erased = m_small_timers.erase(id) > 0;
+            }
+            m_cond.notify_all(); // ufc4: a waiter sleeping until this timer (BB_TIMER_SLEEP)
+            return erased;
         }
         return false;
     }
